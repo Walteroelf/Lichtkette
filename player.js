@@ -24,18 +24,37 @@
     let wait = parseInt(LK.store.get('lk_wait', '0'), 10);
     if (!LK.WAIT_OPTIONS.includes(wait)) wait = 0;
     let sound = LK.store.get('lk_snd', '1') === '1';
-    let target = LK.store.get('lk_tg', 'full') === 'rnd' ? 'rnd' : 'full'; // springender Punkt
+    // Tippfläche: '' = automatisch (Tippen: springender Punkt, Blick/Maus: fester Kreis), 'rnd' springend, 'full' fest
+    let target = ['rnd', 'full'].includes(LK.store.get('lk_tg', '')) ? LK.store.get('lk_tg', '') : '';
     let noTime = LK.store.get('lk_nt', '0') === '1';                      // Zeitspiel: Zeit dieses Geräts zählt nicht
     let team = ['a', 'b'].includes(LK.store.get('lk_team', '')) ? LK.store.get('lk_team', '') : ''; // Wunschteam für die Staffel
+    let missOn = LK.store.get('lk_miss', '0') === '1'; // Staffel: Fehltipps dieses Geräts können eine Strafpause auslösen
     let lastPos = null;
+    let lastMiss = 0;
+    let lastConfirm = 0;
+    let missUntil = 0;
 
-    let active = false;    // Eingabeart gewählt, Spiel läuft
+    let active = false;   // Eingabeart gewählt, Spiel läuft
     let st = null;          // letzter Spielstand
     let lastStateAt = 0;
     let holding = false;
     let lockUntil = 0;
     let resendTimer = null;
     let slot = -1;
+
+    // Vorgaben der Tafel für dieses Gerät (st.cfg) gehen vor, was am Gerät eingestellt ist
+    const cfg = () => (st && st.cfg && st.cfg[ID]) || {};
+    const eTarget = () => {
+      const c = cfg();
+      if (c.rnd === 1) return 'rnd';
+      if (c.rnd === 0) return 'full';
+      return target || (mode === 'blick' ? 'full' : 'rnd');
+    };
+    const eWait = () => (cfg().w !== undefined ? cfg().w : wait);
+    const eNoTime = () => (cfg().nt !== undefined ? cfg().nt === 1 : noTime);
+    const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
+    const eTeam = () => { const t = cfg().tt; if (t === 'a' || t === 'b') return t; return t === 'x' ? '' : team; };
+    const eSize = () => cfg().sz || 1;
 
     const scrMode = $('scr-mode');
     const scrPlay = $('scr-play');
@@ -54,10 +73,12 @@
       document.querySelectorAll('[data-tg]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tg === target)));
       document.querySelectorAll('[data-nt]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.nt === '1') === noTime)));
       document.querySelectorAll('[data-team]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.team === team)));
+      document.querySelectorAll('[data-miss]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.miss === '1') === missOn)));
+      $('cfgNote').hidden = !Object.keys(cfg()).length;
     }
 
     // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
-    const useRandom = () => target === 'rnd' && mode !== 'taster';
+    const useRandom = () => eTarget() === 'rnd' && mode !== 'taster';
     const hintText = () => {
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
@@ -91,6 +112,11 @@
       LK.store.set('lk_nt', noTime ? '1' : '0');
       showMode();
     }));
+    document.querySelectorAll('[data-miss]').forEach((b) => b.addEventListener('click', () => {
+      missOn = b.dataset.miss === '1';
+      LK.store.set('lk_miss', missOn ? '1' : '0');
+      showMode();
+    }));
     document.querySelectorAll('[data-team]').forEach((b) => b.addEventListener('click', () => {
       team = b.dataset.team;
       LK.store.set('lk_team', team);
@@ -102,7 +128,7 @@
       const hold = $('hold');
       const w = window.innerWidth;
       const h = window.innerHeight;
-      const d = Math.max(130, Math.min(Math.min(w, h) * 0.26, 260));
+      const d = Math.min(Math.max(100, Math.min(Math.min(w, h) * 0.2, 200)) * eSize(), Math.min(w, h) * 0.5);
       const m = d / 2 + 18;
       const top = m;
       const bottom = h * 0.80 - d / 2;
@@ -146,7 +172,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: wait, m: mode.charAt(0), nt: noTime ? 1 : 0, tt: team, t: Date.now() });
+      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), pn: eMiss() && mode !== 'taster' ? 1 : 0, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -183,6 +209,10 @@
       if (slot >= 0 && st.gm === 'staffel' && myTeam !== undefined) col = LK.TEAM_COLORS[myTeam];
       else if (iHold && st.gm === 'doppel') col = LK.LIGHT_COLORS[light.k % 3];
       scrPlay.style.setProperty('--c', col);
+      // Vorgaben der Tafel können sich ändern: springender Punkt an/aus, Größe
+      scrPlay.classList.toggle('rnd', useRandom());
+      scrPlay.style.setProperty('--sz', String(eSize()));
+      if (!useRandom() && !holding && $('hold').style.left) clearTarget();
 
       if (iHold && !holding) {
         holding = true;
@@ -212,8 +242,9 @@
       else if (!fresh) msg = 'Warte auf die Tafel …';
       else if (slot < 0) msg = 'Verbinde …';
       else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? 'Dein Team gewinnt!' : 'Geschafft! Gut gespielt') : 'Geschafft!';
-      else if (paused) msg = 'Kurze Pause …';
-      else if (iHold) msg = (clockGame && noTime) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
+      else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
+      else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
+      else if (iHold) msg = (clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';
@@ -242,6 +273,7 @@
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z) return; // in der Staffel: Pause, das andere Team ist gerade dran
       holding = false;
+      lastConfirm = performance.now();
       const s = light.s;
       const epoch = st.epoch;
       sendAct(s, epoch);
@@ -280,6 +312,26 @@
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;
       if (e.key === ' ' || e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); confirm(); }
+    });
+
+    // Fehltipp (nur Staffel, nur wenn die Tafel Strafpause eingeschaltet hat und dieses Gerät mitmacht):
+    // ein Tipp im falschen Moment (kein Licht da) oder neben den Punkt bzw. Kreis
+    scrPlay.addEventListener('pointerdown', (e) => {
+      if (!active || !eMiss() || mode === 'taster' || !st) return;
+      if (st.gm !== 'staffel' || st.ph !== 'play' || st.finale || !st.pen) return;
+      if (e.target.closest('button')) return; // Treffer oder Bedienknopf
+      const now = performance.now();
+      if (holding && now < lockUntil) return;  // gerade erst Licht bekommen
+      if (now - lastConfirm < 900) return;     // Doppeltipp nach dem Weitergeben
+      if (now - lastMiss < 1500) return;       // nicht mehrfach hintereinander bestrafen
+      lastMiss = now;
+      net.send('miss', { id: ID, epoch: st.epoch });
+      missUntil = now + 1400;
+      scrPlay.classList.remove('miss');
+      void scrPlay.offsetWidth;
+      scrPlay.classList.add('miss');
+      render();
+      setTimeout(render, 1450);
     });
 
     $('change').addEventListener('click', showMode);

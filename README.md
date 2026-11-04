@@ -58,9 +58,38 @@ Auf der Tafel unter ⚙ lässt sich von **Ruhig** auf **Zeitspiel** umschalten.
 ### Fairer Ausgleich: „Zeit zählt nicht“
 Auf dem Startbildschirm jedes Geräts gibt es **Zeitspiel: Zeit dieses Geräts → zählt nicht**. Solange ein solches Gerät das Licht hat, **steht die Uhr**. So können auch Schülerinnen und Schüler mit Blicksteuerung oder Taster mitspielen, ohne dass die Gruppe Zeit verliert. Auf dem Gerät steht dann „Die Uhr steht. Du hast Zeit.“ Auf der Tafel sieht man nicht, welches Gerät so eingestellt ist.
 
-## Springender Punkt für fitte Spieler
+## Springender Punkt
 
-Auf dem Startbildschirm gibt es **Tippfläche → springender Punkt** (für Tippen und Maus, nicht für den Taster). Statt des ganzen Bildschirms erscheint ein leuchtender Punkt, bei jedem Licht an einer **anderen Stelle**, nie in der Mitte und nie zweimal am selben Ort. Tipps daneben tun nichts. So kann man nicht einfach dauerhaft in die Mitte tippen.
+Beim **Tippen** springt der Punkt standardmäßig: Statt des ganzen Bildschirms erscheint ein leuchtender Punkt, bei jedem Licht an einer **anderen Stelle**, nie in der Mitte und nie zweimal am selben Ort. Tipps daneben tun nichts. So kann man nicht einfach dauerhaft in die Mitte tippen.
+
+Auf dem Startbildschirm lässt sich das unter **Tippfläche** ändern:
+- **automatisch** (Standard): Tippen = springender Punkt, Blick/Maus = fester Kreis in der Mitte, Taster = keine Tippfläche
+- **fest**: ganzer Bildschirm beim Tippen, Kreis in der Mitte bei Blick/Maus
+- **springender Punkt**: springt auch bei Blick/Maus
+
+Der Punkt ist etwas kleiner als der feste Kreis. Seine **Größe** (klein, normal, groß) stellt die Lehrkraft pro Gerät auf der Tafel ein (siehe unten).
+
+## Einstellungen pro Gerät von der Tafel aus
+
+Auf der Tafel ein **Gerät antippen** (Knoten mit Form und Farbe). Es öffnet sich ein Fenster nur für dieses Gerät. Was dort eingestellt wird, **geht vor, was am Gerät steht**, und gilt sofort. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.
+
+| Einstellung | Wirkung |
+|---|---|
+| Tippfläche | fest oder springender Punkt |
+| Größe des Punkts oder Kreises | klein, normal, groß |
+| Fehltipps | ohne oder mit Strafe (nur Staffel, siehe unten) |
+| Zeit dieses Geräts | zählt oder zählt nicht |
+| Licht wandert weiter nach | nie, 10 s, 30 s |
+| Team | automatisch, Blau, Pink (wirkt vor dem Start einer Runde) |
+
+Die Vorgaben werden auf dem **Tafel-Gerät** gemerkt, pro Gerät. Das Gerät behält also seine Vorgaben, wenn es am nächsten Tag wieder mitspielt. „Alles zurücksetzen“ löscht sie. Auf dem Startbildschirm des Geräts steht ein Hinweis, wenn die Tafel etwas vorgegeben hat.
+
+## Staffel: Strafpause bei Fehltipps
+
+- **Freiwillig und zweifach abgesichert:** Auf der Tafel muss die **Strafpause** eingeschaltet sein (⚙ → Staffel → aus, 2 s oder 4 s), **und** das Gerät muss auf „mit Strafe“ stehen (am Gerät selbst oder von der Tafel vorgegeben). Standard ist beides aus.
+- **Was ein Fehltipp ist:** ein Tipp im falschen Moment (das Gerät hat gerade kein Licht) oder neben den Punkt bzw. Kreis. Nur bei Tippen und Maus, nicht beim Taster.
+- **Was nicht zählt:** Tipps in der ersten Zeit nach dem Erhalten des Lichts, Doppeltipps direkt nach dem Weitergeben und weitere Tipps innerhalb von 1,5 Sekunden.
+- **Wirkung:** Das Licht des **eigenen Teams** pausiert („Strafpause“, auf der Tafel in Rot). Die Strafe trifft also das Team, nicht nur das Kind. Deshalb nur für Geräte einschalten, die sicher zielen können.
 
 ## Für Augensteuerung und Taster
 

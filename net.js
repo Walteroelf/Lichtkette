@@ -68,7 +68,9 @@
         if (!fn) return;
         let msg = null;
         try { msg = JSON.parse(buf.toString()); } catch (e) { return; }
-        if (msg && typeof msg === 'object') fn(msg);
+        if (msg && typeof msg === 'object') {
+          try { fn(msg); } catch (e) { console.error('Lichtkette:', name, e && e.stack ? e.stack : e); }
+        }
       });
     }
 

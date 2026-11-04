@@ -18,6 +18,7 @@
   const GN_OPTIONS = [0, 10, 15, 20]; // 0 = automatisch
   const NL_OPTIONS = [2, 3];
   const BPM_OPTIONS = [70, 90, 110];
+  const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
   const GAMES = ['klassik', 'rhythmus', 'staffel', 'doppel', 'schatz'];
   const TITLES = { klassik: 'Lichtkette', rhythmus: 'Rhythmus', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
@@ -60,6 +61,13 @@
     let beatAt = 0;
     let beatCount = 0;
     let token = 0;
+    const penUntil = [0, 0]; // Staffel: bis wann das Licht des Teams wegen eines Fehltipps pausiert
+    // Vorgaben der Tafel pro Gerät (überstimmen die Einstellung am Gerät). Fehlt ein Wert, entscheidet das Gerät selbst.
+    // pn Strafe bei Fehltipps 0/1, sz Größe des Punkts 0.7/1/1.4, rnd springender Punkt 0/1,
+    // nt Zeit zählt nicht 0/1, w Weiterwandern 0/10/30 s, tt Team a/b/x (x = automatisch)
+    let cfgAll = {};
+    try { cfgAll = JSON.parse(LK.store.get('lk_cfg', '{}')) || {}; } catch (e) { cfgAll = {}; }
+    const saveCfg = () => LK.store.set('lk_cfg', JSON.stringify(cfgAll));
     let soundOn = LK.store.get('lk_board_snd', '1') === '1';
     let since = Date.now(); // Zeitspiel: Beginn des gerade laufenden Zeitabschnitts
 
@@ -72,6 +80,7 @@
       stars: [], sc: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: readNum('lk_gn', GN_OPTIONS, 0), nl: readNum('lk_nl', NL_OPTIONS, 2), bpm: readNum('lk_bpm', BPM_OPTIONS, 90),
+      pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {},
       // Zeitspiel: ph = ready | count | play, acc = gezählte Zeit in ms, run = Uhr läuft,
       // ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit, n = Geräteanzahl für die Bestzeit
       ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, n: 0, cd: 0,
@@ -80,7 +89,7 @@
     // Bestzeit gilt nur für gleich viele Weitergaben UND gleich viele Geräte, sonst ist sie nicht vergleichbar
     const bestFor = (goal, n) => parseInt(LK.store.get(`lk_best_${goal}_${n}`, '0'), 10) || 0;
 
-    const net = new LK.Net(room, startBroker, ['hb', 'act', 'host', 'state']);
+    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'host', 'state']);
 
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
@@ -308,6 +317,8 @@
       st.lights.forEach((l, i) => clearTimeout(autoTimers[i]));
       pendingPass = {};
       finishing = false;
+      penUntil[0] = 0;
+      penUntil[1] = 0;
       if (bump) st.round++;
       st.finale = false;
       st.chain = 0;
@@ -368,6 +379,7 @@
       LK.store.set('lk_gn', String(st.gn));
       LK.store.set('lk_nl', String(st.nl));
       LK.store.set('lk_bpm', String(st.bpm));
+      LK.store.set('lk_pen', String(st.pen));
       resetRound(true);
       publish();
     }
@@ -400,10 +412,24 @@
 
     // Staffel: Hat ein Gerät mit "Zeit zählt nicht" das Licht, wartet das andere Team, bis es weitergegeben hat.
     function calcFrozen() {
+      const now = Date.now();
       st.lights.forEach((l, i) => {
         const o = st.lights[1 - i];
-        l.z = !!(st.gm === 'staffel' && st.lights.length === 2 && l.h && o && o.h && isNt(o.h) && !isNt(l.h));
+        const wait = !!(st.gm === 'staffel' && st.lights.length === 2 && l.h && o && o.h && isNt(o.h) && !isNt(l.h));
+        l.pn = !!(st.gm === 'staffel' && l.h && penUntil[i] > now); // Strafpause nach einem Fehltipp im eigenen Team
+        l.z = wait || l.pn;
       });
+    }
+
+    // Fehltipp eines Geräts (nur Staffel, nur wenn die Tafel Strafzeit eingeschaltet hat und das Gerät mitmacht)
+    function onMiss(id) {
+      if (st.gm !== 'staffel' || st.ph !== 'play' || st.finale || finishing || !st.pen) return;
+      if (!peers[id] || !peers[id].pn) return;
+      const team = st.team[id];
+      if (team === undefined || penUntil[team] > Date.now()) return;
+      penUntil[team] = Date.now() + st.pen * 1000;
+      publish();
+      setTimeout(() => { if (isHost === true) publish(); }, st.pen * 1000 + 60);
     }
 
     function tick() {
@@ -421,9 +447,41 @@
       }
     }
 
+    // Vorgaben der Tafel für ein Gerät auf das anwenden, was das Gerät selbst gemeldet hat
+    function applyPeerCfg(id) {
+      const p = peers[id];
+      const c = cfgAll[id];
+      if (!p || !c) return;
+      if (c.nt !== undefined) p.nt = c.nt === 1;
+      if (c.w !== undefined && LK.WAIT_OPTIONS.includes(c.w)) p.w = c.w;
+      if (c.pn !== undefined) p.pn = c.pn === 1;
+      if (c.tt !== undefined) p.tt = c.tt === 'a' || c.tt === 'b' ? c.tt : '';
+    }
+
+    // Einstellung eines Geräts ändern (value null = Gerät entscheidet wieder selbst)
+    function setDeviceCfg(id, key, value) {
+      if (isHost !== true || st.players[id] === undefined) return;
+      const c = cfgAll[id] || {};
+      if (value === null || value === undefined) delete c[key]; else c[key] = value;
+      if (Object.keys(c).length) cfgAll[id] = c; else delete cfgAll[id];
+      saveCfg();
+      if (key === 'tt' && st.gm === 'staffel' && st.ph !== 'play' && peers[id]) {
+        // Teamwechsel nur vor dem Start einer Runde
+        if (value === null) peers[id].tt = '';
+        applyPeerCfg(id);
+        const pt = teamPref(id);
+        if (pt >= 0) { st.team[id] = pt; teamMem[id] = pt; } else assignTeam(id);
+      } else {
+        applyPeerCfg(id);
+      }
+      publish();
+    }
+
     function publish() {
       rollClock();
       calcFrozen();
+      st.cfg = {};
+      aliveIds().forEach((id) => { if (cfgAll[id]) st.cfg[id] = cfgAll[id]; });
       // Vor dem Start passt sich die angezeigte Bestzeit an die Zahl der Geräte an, die gerade da sind
       if (isTm() && st.ph === 'ready') {
         st.n = aliveIds().length;
@@ -458,9 +516,10 @@
       const now = Date.now();
       const prev = peers[m.id];
       peers[m.id] = {
-        last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m, nt: m.nt === 1,
+        last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m, nt: m.nt === 1, pn: m.pn === 1,
         tt: m.tt === 'a' || m.tt === 'b' ? m.tt : '',
       };
+      applyPeerCfg(m.id); // Vorgaben der Tafel gehen vor
       if (isHost !== true) return;
       const added = addPlayer(m.id);
       let changed = added;
@@ -477,6 +536,10 @@
       const li = st.lights.findIndex((l) => l.h === m.id);
       if (li < 0 || m.epoch !== st.epoch || m.s !== st.lights[li].s) return;
       reqPass(li);
+    });
+
+    net.on('miss', (m) => {
+      if (isHost === true && typeof m.id === 'string' && m.epoch === st.epoch) onMiss(m.id);
     });
 
     net.on('host', (m) => {
@@ -905,9 +968,15 @@
       view.lights.forEach((l, li) => {
         if (!l.z || !l.h || view.vis[li] !== l.h || !nodes[l.h]) return;
         const n = nodes[l.h];
-        ctx.fillStyle = 'rgba(6,7,13,0.85)';
+        ctx.fillStyle = l.pn ? 'rgba(251,113,133,0.95)' : 'rgba(6,7,13,0.85)';
         ctx.fillRect(n.x - R * 0.32, n.y - R * 0.38, R * 0.22, R * 0.76);
         ctx.fillRect(n.x + R * 0.1, n.y - R * 0.38, R * 0.22, R * 0.76);
+        if (l.pn) {
+          ctx.font = `600 ${Math.round(R * 0.5)}px ${SANS}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('Strafpause', n.x, n.y + R * 1.9);
+        }
       });
       // Nummer des Lichts (Doppelte Lichter)
       if (view.gm === 'doppel') {
@@ -1070,6 +1139,7 @@
       mark('gn', st.gn);
       mark('nl', st.nl);
       mark('bpm', st.bpm);
+      mark('pen', st.pen);
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== st.gm; });
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
@@ -1114,6 +1184,56 @@
     onSetting('gn', 'gn', (v) => parseInt(v, 10));
     onSetting('nl', 'nl', (v) => parseInt(v, 10));
     onSetting('bpm', 'bpm', (v) => parseInt(v, 10));
+    onSetting('pen', 'pen', (v) => parseInt(v, 10));
+
+    // Gerät auf der Tafel antippen: Einstellungen nur für dieses Gerät
+    let devId = null;
+    function markDev() {
+      const c = cfgAll[devId] || {};
+      document.querySelectorAll('#devDlg [data-cfg]').forEach((seg) => {
+        const cur = c[seg.dataset.cfg] === undefined ? '' : String(c[seg.dataset.cfg]);
+        seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
+      });
+    }
+    function openDev(id) {
+      devId = id;
+      const n = nodes[id];
+      $('devTitle').innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> Gerät`;
+      markDev();
+      $('devDlg').showModal();
+    }
+    cv.addEventListener('click', (e) => {
+      if (isHost !== true || $('dlg').open || $('devDlg').open || !$('startOv').hidden) return;
+      const R = baseR();
+      let best = null;
+      let bd = Infinity;
+      Object.keys(nodes).forEach((id) => {
+        const n = nodes[id];
+        if (n.dying) return;
+        const d = Math.hypot(n.x - e.clientX, n.y - e.clientY);
+        if (d < R * 2.2 && d < bd) { bd = d; best = id; }
+      });
+      if (best) openDev(best);
+    });
+    document.querySelectorAll('#devDlg [data-cfg]').forEach((seg) => seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || devId === null) return;
+      const type = seg.dataset.type;
+      const v = b.dataset.v;
+      let value = null;
+      if (v !== '') value = type === 'float' ? parseFloat(v) : (type === 'int' ? parseInt(v, 10) : v);
+      setDeviceCfg(devId, seg.dataset.cfg, value);
+      markDev();
+    }));
+    $('devReset').addEventListener('click', () => {
+      if (devId === null) return;
+      delete cfgAll[devId];
+      saveCfg();
+      if (peers[devId]) { peers[devId].nt = false; peers[devId].pn = false; }
+      publish();
+      markDev();
+    });
+    $('devClose').addEventListener('click', () => $('devDlg').close());
 
     $('goBtn').addEventListener('click', startCountdown);
     document.addEventListener('keydown', (e) => {

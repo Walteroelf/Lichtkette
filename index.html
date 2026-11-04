@@ -46,19 +46,24 @@
       <span>Ton auf diesem Gerät</span>
       <div class="seg"><button data-snd="1">an</button><button data-snd="0">aus</button></div>
     </div>
-    <div class="opt" title="Nur für Tippen und Maus. Der Punkt erscheint bei jedem Licht an einer anderen Stelle, damit man nicht einfach in die Mitte tippen kann.">
+    <div class="opt" title="Automatisch: Beim Tippen springt der Punkt bei jedem Licht an eine andere Stelle, damit man nicht einfach in die Mitte tippen kann. Bei Blick und Maus bleibt der Kreis fest in der Mitte. Beim Taster gibt es keine Tippfläche.">
       <span>Tippfläche</span>
-      <div class="seg"><button data-tg="full">wie gewohnt</button><button data-tg="rnd">springender Punkt</button></div>
+      <div class="seg"><button data-tg="">automatisch</button><button data-tg="full">fest</button><button data-tg="rnd">springender Punkt</button></div>
     </div>
     <div class="opt" title="Im Zeitspiel steht die Uhr, solange dieses Gerät das Licht hat. In der Staffel wartet das andere Team.">
       <span>Zeit dieses Geräts (Zeitspiel, Staffel)</span>
       <div class="seg"><button data-nt="0">zählt</button><button data-nt="1">zählt nicht</button></div>
+    </div>
+    <div class="opt" title="Nur für die Staffel, nur bei Tippen und Maus, und nur wenn die Tafel Strafpause eingeschaltet hat. Ein Tipp im falschen Moment oder neben den Punkt hält das Licht des eigenen Teams kurz an.">
+      <span>Fehltipps (Staffel)</span>
+      <div class="seg"><button data-miss="0">ohne Strafe</button><button data-miss="1">mit Strafe</button></div>
     </div>
     <div class="opt" title="Nur für die Staffel. Bei „automatisch“ verteilt die Tafel die Geräte gleichmäßig auf beide Teams.">
       <span>Team (Staffel)</span>
       <div class="seg"><button data-team="">automatisch</button><button data-team="a">Blau</button><button data-team="b">Pink</button></div>
     </div>
   </div>
+  <p id="cfgNote" class="foot" hidden>Die Tafel hat für dieses Gerät Einstellungen vorgegeben.</p>
   <p class="foot"><span id="roomInfo"></span> · <a id="asBoard" href="#">Dieses Gerät als Tafel</a></p>
 </section>
 
@@ -102,6 +107,37 @@
     <button id="startBtn" class="big-btn">Tafel starten ▶<small>Ton und Bildschirm bleiben an</small></button>
   </div>
 
+  <dialog id="devDlg">
+    <h2 id="devTitle">Gerät</h2>
+    <p class="info">Gilt nur für dieses Gerät und geht vor, was am Gerät eingestellt ist. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.</p>
+    <div class="stack tight">
+      <label>Tippfläche</label>
+      <div class="seg wide" data-cfg="rnd" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">fest</button><button data-v="1">springender Punkt</button></div>
+    </div>
+    <div class="stack tight">
+      <label>Größe des Punkts oder Kreises</label>
+      <div class="seg wide" data-cfg="sz" data-type="float"><button data-v="">wie am Gerät</button><button data-v="0.75">klein</button><button data-v="1">normal</button><button data-v="1.4">groß</button></div>
+    </div>
+    <div class="stack tight">
+      <label>Fehltipps (Staffel, Tippen und Maus)</label>
+      <div class="seg wide" data-cfg="pn" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">ohne Strafe</button><button data-v="1">mit Strafe</button></div>
+    </div>
+    <div class="stack tight">
+      <label>Zeit dieses Geräts (Zeitspiel, Staffel)</label>
+      <div class="seg wide" data-cfg="nt" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">zählt</button><button data-v="1">zählt nicht</button></div>
+    </div>
+    <div class="stack tight">
+      <label>Licht wandert weiter nach</label>
+      <div class="seg wide" data-cfg="w" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">nie</button><button data-v="10">10 s</button><button data-v="30">30 s</button></div>
+    </div>
+    <div class="stack tight">
+      <label>Team (Staffel, wirkt vor dem Start einer Runde)</label>
+      <div class="seg wide" data-cfg="tt" data-type="str"><button data-v="">wie am Gerät</button><button data-v="x">automatisch</button><button data-v="a">Blau</button><button data-v="b">Pink</button></div>
+    </div>
+    <div class="stack"><button id="devReset" class="btn ghost">Alles zurücksetzen</button></div>
+    <button id="devClose" class="btn close">Fertig</button>
+  </dialog>
+
   <dialog id="dlg">
     <h2>Tafel</h2>
     <form id="roomForm" class="stack">
@@ -125,6 +161,10 @@
       <div data-for="klassik" class="stack tight">
         <label>Modus</label>
         <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
+      </div>
+      <div data-for="staffel" class="stack tight">
+        <label>Strafpause bei Fehltipp (nur Geräte, die „mit Strafe“ eingestellt sind)</label>
+        <div class="seg wide"><button data-pen="0">aus</button><button data-pen="2">2 s</button><button data-pen="4">4 s</button></div>
       </div>
       <div data-for="doppel" class="stack tight">
         <label>Lichter gleichzeitig</label>
