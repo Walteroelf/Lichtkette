@@ -46,6 +46,14 @@
       <span>Ton auf diesem Gerät</span>
       <div class="seg"><button data-snd="1">an</button><button data-snd="0">aus</button></div>
     </div>
+    <div class="opt" title="Nur für Tippen und Maus. Der Punkt erscheint bei jedem Licht an einer anderen Stelle, damit man nicht einfach in die Mitte tippen kann.">
+      <span>Tippfläche</span>
+      <div class="seg"><button data-tg="full">wie gewohnt</button><button data-tg="rnd">springender Punkt</button></div>
+    </div>
+    <div class="opt" title="Im Zeitspiel steht die Uhr, solange dieses Gerät das Licht hat.">
+      <span>Zeitspiel: Zeit dieses Geräts</span>
+      <div class="seg"><button data-nt="0">zählt</button><button data-nt="1">zählt nicht</button></div>
+    </div>
   </div>
   <p class="foot"><span id="roomInfo"></span> · <a id="asBoard" href="#">Dieses Gerät als Tafel</a></p>
 </section>
@@ -82,6 +90,7 @@
     <span id="viewerTag" hidden>Mitschau</span>
   </div>
   <button id="gear" aria-label="Einstellungen">⚙</button>
+  <button id="goBtn" class="big-btn" hidden>Los ▶</button>
 
   <div id="startOv" class="overlay">
     <h1 class="logo">Lichtkette</h1>
@@ -98,6 +107,12 @@
       </div>
       <p id="roomErr" class="err" hidden>4 bis 24 Zeichen: Buchstaben, Zahlen, Bindestrich.</p>
     </form>
+    <div id="modeBox" class="stack">
+      <label>Spielart</label>
+      <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
+      <label>Weitergaben pro Runde (im Zeitspiel: Bestzeit schlagen)</label>
+      <div class="seg wide"><button data-gn="0">Auto</button><button data-gn="10">10</button><button data-gn="15">15</button><button data-gn="20">20</button></div>
+    </div>
     <div class="stack">
       <button id="copyBtn" class="btn">Spieler-Link kopieren</button>
       <button id="newRoomBtn" class="btn ghost">Neuen Raumcode erzeugen</button>

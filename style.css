@@ -191,6 +191,23 @@ label { color: var(--muted); font-size: 14px; text-align: left; }
 @keyframes ringBreath { 50% { box-shadow: 0 0 90px color-mix(in srgb, var(--c) 80%, transparent); } }
 .mode-taster #hold:focus-visible, .mode-touch #hold:focus-visible { outline: none; }
 
+/* Springender Punkt: kleiner Kreis an wechselnder Stelle, der Rest des Bildschirms reagiert nicht */
+.rnd #hold {
+  inset: auto;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: clamp(5px, 0.9vmin, 10px) solid var(--c);
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  box-shadow: 0 0 44px color-mix(in srgb, var(--c) 60%, transparent);
+  display: grid;
+  place-items: center;
+  animation: ringBreath 1.6s ease-in-out infinite;
+}
+.rnd #hold svg { width: 52%; height: 52%; fill: var(--c); stroke: var(--c); pointer-events: none; }
+.rnd #hold.locked { opacity: 0.35; animation: none; }
+.rnd #shape { display: none; }
+.rnd #glow { background: radial-gradient(circle at var(--gx, 50%) var(--gy, 46%), var(--c) 0%, color-mix(in srgb, var(--c) 30%, transparent) 26%, transparent 55%); }
+
 #ripple {
   position: absolute;
   left: 50%; top: 46%;
@@ -266,6 +283,10 @@ label { color: var(--muted); font-size: 14px; text-align: left; }
 #gear:hover { opacity: 1; }
 
 .overlay { position: absolute; inset: 0; background: rgba(6, 7, 13, 0.94); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; }
+
+.seg.wide { display: flex; }
+.seg.wide button { flex: 1; }
+#goBtn { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); padding: 16px 52px; z-index: 3; }
 
 dialog {
   background: #0d0f1e;

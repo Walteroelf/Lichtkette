@@ -26,10 +26,19 @@
     let finTimer = null;
     let decideTimer = null;
     let soundOn = LK.store.get('lk_board_snd', '1') === '1';
+    const GN_OPTIONS = [0, 10, 15, 20]; // Weitergaben pro Runde (0 = automatisch)
+    let since = Date.now(); // Zeitspiel: Beginn des gerade laufenden Zeitabschnitts
+    let cdTimer = null;
     let st = {
       epoch: Date.now(), seq: 0, holder: null, prev: null, chain: 0, goal: 8, round: 1,
       finale: false, players: {}, autoMs: 0, host: boardId, ts: 0,
+      // Zeitspiel: tm = an/aus, gn = Weitergaben pro Runde, ph = ready | count | play,
+      // acc = bisher gezählte Zeit in ms, run = Uhr läuft, ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit
+      tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
+      gn: (() => { const g = parseInt(LK.store.get('lk_gn', '0'), 10); return GN_OPTIONS.includes(g) ? g : 0; })(),
+      ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, cd: 0,
     };
+    const bestFor = (goal) => parseInt(LK.store.get(`lk_best_${goal}`, '0'), 10) || 0;
 
     const net = new LK.Net(room, startBroker, ['hb', 'act', 'host', 'state']);
 
@@ -73,15 +82,24 @@
       return n;
     }
 
+    // Zeitspiel: Zeit bis jetzt festhalten. Die Uhr steht, solange ein Gerät mit "Zeit zählt nicht" das Licht hat.
+    function rollClock() {
+      const now = Date.now();
+      if (st.run) st.acc += now - since;
+      since = now;
+    }
+
     function setHolder(next) {
+      rollClock();
       st.prev = st.holder;
       st.holder = next;
       st.seq++;
       st.autoMs = 0;
+      st.run = !!(st.tm && st.ph === 'play' && next && !(peers[next] && peers[next].nt));
       clearTimeout(autoTimer);
       if (next) {
         const w = (peers[next] && peers[next].w) || 0;
-        if (w > 0) {
+        if (w > 0 && !st.tm) {
           st.autoMs = w * 1000;
           const seq = st.seq;
           autoTimer = setTimeout(() => { if (isHost && st.seq === seq && st.holder) pass(); }, st.autoMs);
@@ -90,29 +108,84 @@
     }
 
     function pass() {
-      if (st.finale) return;
+      if (st.finale || st.ph !== 'play') return;
       st.chain++;
       if (st.chain >= st.goal) { startFinale(); return; }
       setHolder(pickNext());
       publish();
     }
 
+    function computeGoal() {
+      if (st.gn > 0) return st.gn;
+      return st.tm ? 10 : Math.max(8, aliveIds().length * 3);
+    }
+
+    // Neue Runde. Im Zeitspiel wartet sie auf "Los", sonst geht das Licht gleich los.
+    function resetRound(bump) {
+      clearTimeout(finTimer);
+      clearTimeout(cdTimer);
+      if (bump) st.round++;
+      st.finale = false;
+      st.chain = 0;
+      st.goal = computeGoal();
+      st.prev = null;
+      st.holder = null;
+      st.acc = 0;
+      st.run = false;
+      st.ft = 0;
+      st.rec = 0;
+      st.cd = 0;
+      st.ph = st.tm ? 'ready' : 'play';
+      st.best = st.tm ? bestFor(st.goal) : 0;
+      since = Date.now();
+      setHolder(st.ph === 'play' ? pickNext() : null);
+    }
+
+    function startCountdown() {
+      if (isHost !== true || st.ph !== 'ready' || !aliveIds().length) return;
+      st.ph = 'count';
+      st.cd = 3000;
+      publish();
+      clearTimeout(cdTimer);
+      cdTimer = setTimeout(() => {
+        if (isHost !== true) return;
+        st.cd = 0;
+        if (!aliveIds().length) { st.ph = 'ready'; publish(); return; }
+        st.ph = 'play';
+        st.acc = 0;
+        since = Date.now();
+        setHolder(pickNext());
+        publish();
+      }, 3000);
+    }
+
+    function applySettings(tm, gn) {
+      st.tm = tm;
+      st.gn = gn;
+      LK.store.set('lk_tm', String(tm));
+      LK.store.set('lk_gn', String(gn));
+      resetRound(true);
+      publish();
+    }
+
     function startFinale() {
+      rollClock();
       st.finale = true;
+      if (st.tm) {
+        st.ft = st.acc;
+        const prevBest = bestFor(st.goal);
+        st.rec = prevBest === 0 ? 2 : (st.ft < prevBest ? 1 : 0);
+        if (prevBest === 0 || st.ft < prevBest) LK.store.set(`lk_best_${st.goal}`, String(st.ft));
+        st.best = bestFor(st.goal);
+      }
       setHolder(null);
       publish();
       clearTimeout(finTimer);
       finTimer = setTimeout(() => {
         if (!isHost) return;
-        st.finale = false;
-        st.round++;
-        st.chain = 0;
-        st.goal = Math.max(8, aliveIds().length * 3);
-        st.prev = null;
-        st.holder = null;
-        setHolder(pickNext());
+        resetRound(true);
         publish();
-      }, FINALE_MS);
+      }, st.tm ? 8000 : FINALE_MS);
     }
 
     function tick() {
@@ -125,7 +198,7 @@
           removePlayer(id);
           changed = true;
           if (st.holder === id) {
-            if (st.finale) st.holder = null; else setHolder(pickNext());
+            if (st.finale || st.ph !== 'play') st.holder = null; else setHolder(pickNext());
           }
         }
       });
@@ -133,6 +206,7 @@
     }
 
     function publish() {
+      rollClock();
       st.ts = Date.now();
       net.send('state', st);
       applyState(st);
@@ -145,10 +219,7 @@
       st.seq++;
       const now = Date.now();
       Object.keys(peers).forEach((id) => { if (now - peers[id].last < GONE_MS) addPlayer(id); });
-      if (aliveIds().length) {
-        st.goal = Math.max(8, aliveIds().length * 3);
-        setHolder(pickNext());
-      }
+      resetRound(false);
       publish();
       net.send('host', { id: boardId });
       setInterval(() => { if (isHost) net.send('host', { id: boardId }); }, 2000);
@@ -166,15 +237,15 @@
       if (typeof m.id !== 'string' || m.id.length > 16) return;
       const now = Date.now();
       const prev = peers[m.id];
-      peers[m.id] = { last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m };
+      peers[m.id] = { last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m, nt: m.nt === 1 };
       if (isHost !== true) return;
       const added = addPlayer(m.id);
-      if (added && !st.holder && !st.finale) setHolder(pickNext());
+      if (added && !st.holder && !st.finale && st.ph === 'play') setHolder(pickNext());
       if (added || !prev || now - prev.last > 6000) publish();
     });
 
     net.on('act', (m) => {
-      if (isHost === true && !st.finale && m.id === st.holder && m.seq === st.seq && m.epoch === st.epoch) pass();
+      if (isHost === true && !st.finale && st.ph === 'play' && m.id === st.holder && m.seq === st.seq && m.epoch === st.epoch) pass();
     });
 
     net.on('host', (m) => {
@@ -216,6 +287,7 @@
     const view = {
       seq: -1, round: -1, holder: null, holderVis: null, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, autoMs: 0, autoSince: 0, init: false,
+      tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0, ft: 0, rec: 0, best: 0, cd: 0, finDur: FINALE_MS,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -237,7 +309,7 @@
       const cx = W / 2;
       const cy = H / 2;
       const rx = W * 0.36;
-      const ry = H * 0.33;
+      const ry = H * (view.tm ? 0.3 : 0.33); // im Zeitspiel Platz für die Uhr oben
       ids.forEach((id, i) => {
         if (n === 1) { nodes[id].tx = cx; nodes[id].ty = cy - ry * 0.55; return; }
         const a = (i / n) * TAU - Math.PI / 2;
@@ -292,7 +364,35 @@
       view.goal = s.goal;
       view.autoMs = s.autoMs;
       view.holder = s.holder;
+      const now = performance.now();
+      if ((s.ph || 'play') !== view.ph) view.phAt = now;
+      const tmChanged = !!s.tm !== view.tm;
+      view.ph = s.ph || 'play';
+      view.tm = !!s.tm;
+      view.acc = s.acc || 0;
+      view.run = !!s.run;
+      view.accAt = now;
+      view.ft = s.ft || 0;
+      view.rec = s.rec || 0;
+      view.best = s.best || 0;
+      view.cd = s.cd || 0;
+      view.gn = s.gn;
+      view.goalN = s.goal;
+      view.finDur = s.tm ? 8000 : FINALE_MS;
+      if (tmChanged) layout();
+      refreshUi();
     }
+
+    function refreshUi() {
+      $('goBtn').hidden = !(isHost === true && view.ph === 'ready' && Object.keys(st.players).length > 0);
+    }
+
+    const fmtTime = (ms) => {
+      const t = Math.max(0, Math.floor(ms / 100));
+      const m = Math.floor(t / 600);
+      const s = Math.floor((t % 600) / 10);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${t % 10}`;
+    };
 
     function startPulse(from, to) {
       const now = performance.now();
@@ -370,7 +470,7 @@
 
       const R = baseR();
       const fin = view.fin;
-      const finT = fin ? (now - fin.t0) / FINALE_MS : 0;
+      const finT = fin ? (now - fin.t0) / view.finDur : 0;
 
       // Pulsbewegung
       if (pulse) {
@@ -481,8 +581,10 @@
       if (fin && !reduceMotion) {
         const cols = Object.values(st.players).sort((a, b) => a - b);
         for (let i = 0; i < 5; i++) {
-          const k = ((now - fin.t0) / 2400 - i * 0.26);
-          if (k <= 0 || k >= 1) continue;
+          let k = ((now - fin.t0) / 2400 - i * 0.26);
+          if (k <= 0) continue;
+          k %= 1.5;
+          if (k >= 1) continue;
           const col = LK.COLORS[cols[i % Math.max(1, cols.length)] || 0];
           ctx.lineWidth = 5 * (1 - k) + 1;
           ctx.strokeStyle = LK.rgba(col, 0.55 * (1 - k));
@@ -492,34 +594,87 @@
         }
       }
 
-      // Mitte: Fortschritt der Runde
+      // Mitte: Fortschritt der Runde, im Zeitspiel dazu Uhr, Countdown und Endzeit
       ctx.globalCompositeOperation = 'source-over';
-      const target = fin ? 1 : (view.goal ? view.chain / view.goal : 0);
-      view.prog += (target - view.prog) * 0.08;
+      const sans = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+      const mono = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+      const tm = view.tm;
       const hr = Math.min(W, H) * 0.085;
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(180,190,255,0.12)';
-      ctx.beginPath();
-      ctx.arc(W / 2, H / 2, hr, 0, TAU);
-      ctx.stroke();
-      if (view.prog > 0.004) {
-        ctx.strokeStyle = 'rgba(190,200,255,0.65)';
-        ctx.beginPath();
-        ctx.arc(W / 2, H / 2, hr, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, view.prog));
-        ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(200,205,240,0.7)';
+      const cx = W / 2;
+      const cy = H / 2;
+      const playersHere = Object.keys(nodes).filter((id) => !nodes[id].dying).length;
+      const timeMs = fin ? view.ft : Math.max(0, view.acc + (view.run ? now - view.accAt : 0));
+      const finA = fin ? Math.min(1, finT * 6) * (finT > 0.88 ? Math.max(0, (1 - finT) / 0.12) : 1) : 0;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      if (fin) {
-        const a = Math.min(1, finT * 6) * (finT > 0.85 ? Math.max(0, (1 - finT) / 0.15) : 1);
-        ctx.fillStyle = `rgba(235,238,255,${a})`;
-        ctx.font = `600 ${Math.round(hr * 0.42)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
-        ctx.fillText('Runde geschafft', W / 2, H / 2);
+
+      const target = fin ? 1 : (view.goal ? view.chain / view.goal : 0);
+      view.prog += (target - view.prog) * 0.08;
+      if (!(fin && tm)) {
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(180,190,255,0.12)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, hr, 0, TAU);
+        ctx.stroke();
+        if (view.prog > 0.004) {
+          ctx.strokeStyle = 'rgba(190,200,255,0.65)';
+          ctx.beginPath();
+          ctx.arc(cx, cy, hr, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, view.prog));
+          ctx.stroke();
+        }
+      }
+
+      if (fin && tm) {
+        ctx.fillStyle = `rgba(200,205,240,${finA * 0.8})`;
+        ctx.font = `500 ${Math.round(hr * 0.34)}px ${sans}`;
+        ctx.fillText('Geschafft in', cx, cy - hr * 1.0);
+        ctx.fillStyle = `rgba(240,242,255,${finA})`;
+        ctx.font = `600 ${Math.round(hr * 0.95)}px ${mono}`;
+        ctx.fillText(fmtTime(timeMs), cx, cy);
+        const good = view.rec > 0;
+        ctx.fillStyle = good ? `rgba(110,231,183,${finA})` : `rgba(200,205,240,${finA * 0.8})`;
+        ctx.font = `600 ${Math.round(hr * 0.4)}px ${sans}`;
+        const sub = view.rec === 1 ? 'Neue Bestzeit!' : (view.rec === 2 ? 'Bestzeit gesetzt' : `Bestzeit ${fmtTime(view.best)}`);
+        ctx.fillText(sub, cx, cy + hr * 0.95);
+      } else if (fin) {
+        ctx.fillStyle = `rgba(235,238,255,${finA})`;
+        ctx.font = `600 ${Math.round(hr * 0.42)}px ${sans}`;
+        ctx.fillText('Runde geschafft', cx, cy);
+      } else if (tm && view.ph === 'count') {
+        const left = Math.max(0, view.cd - (now - view.phAt));
+        const nn = Math.max(1, Math.ceil(left / 1000));
+        const frac = (left % 1000) / 1000;
+        ctx.fillStyle = `rgba(240,242,255,${0.55 + 0.45 * frac})`;
+        ctx.font = `700 ${Math.round(hr * 1.5 * (0.9 + 0.1 * frac))}px ${sans}`;
+        ctx.fillText(String(nn), cx, cy);
+        ctx.fillStyle = 'rgba(200,205,240,0.75)';
+        ctx.font = `500 ${Math.round(hr * 0.3)}px ${sans}`;
+        ctx.fillText('Mach dich bereit', cx, cy + hr * 1.35);
+      } else if (tm && view.ph === 'ready') {
+        ctx.fillStyle = 'rgba(235,238,255,0.9)';
+        ctx.font = `600 ${Math.round(hr * 0.4)}px ${sans}`;
+        ctx.fillText('Zeitspiel', cx, cy - hr * 0.12);
+        ctx.fillStyle = 'rgba(200,205,240,0.7)';
+        ctx.font = `500 ${Math.round(hr * 0.28)}px ${sans}`;
+        ctx.fillText(`${view.goalN || ''} Weitergaben`, cx, cy + hr * 0.3);
       } else {
-        ctx.font = `500 ${Math.round(hr * 0.3)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
-        ctx.fillText(`Runde ${view.round > 0 ? view.round : 1}`, W / 2, H / 2);
+        ctx.fillStyle = 'rgba(200,205,240,0.7)';
+        ctx.font = `500 ${Math.round(hr * 0.3)}px ${sans}`;
+        ctx.fillText(`Runde ${view.round > 0 ? view.round : 1}`, cx, cy);
+      }
+
+      // Uhr oben (nur Zeitspiel, nicht während des Finales, da steht die Zeit in der Mitte)
+      if (tm && playersHere > 0 && !fin) {
+        const fs = Math.round(Math.min(W, H) * 0.075);
+        ctx.fillStyle = 'rgba(240,242,255,0.92)';
+        ctx.font = `600 ${fs}px ${mono}`;
+        ctx.fillText(fmtTime(timeMs), cx, H * 0.075);
+        if (view.best) {
+          ctx.fillStyle = 'rgba(160,168,210,0.8)';
+          ctx.font = `500 ${Math.round(fs * 0.36)}px ${sans}`;
+          ctx.fillText(`Bestzeit ${fmtTime(view.best)}`, cx, H * 0.075 + fs * 0.78);
+        }
       }
     }
 
@@ -548,6 +703,8 @@
       $('roomInput').value = room;
       $('sndBtn').textContent = soundOn ? 'Ton: an' : 'Ton: aus';
       $('restartBtn').hidden = isHost !== true;
+      $('modeBox').hidden = isHost !== true;
+      markSettings();
       $('dlg').showModal();
     });
     $('dlgClose').addEventListener('click', () => $('dlg').close());
@@ -564,16 +721,32 @@
     });
     $('restartBtn').addEventListener('click', () => {
       if (isHost !== true) return;
-      clearTimeout(finTimer);
-      st.finale = false;
-      st.round++;
-      st.chain = 0;
-      st.goal = Math.max(8, aliveIds().length * 3);
-      st.prev = null;
-      st.holder = null;
-      setHolder(pickNext());
+      resetRound(true);
       publish();
       $('dlg').close();
+    });
+
+    function markSettings() {
+      document.querySelectorAll('[data-tm]').forEach((b) => b.setAttribute('aria-pressed', String(parseInt(b.dataset.tm, 10) === st.tm)));
+      document.querySelectorAll('[data-gn]').forEach((b) => b.setAttribute('aria-pressed', String(parseInt(b.dataset.gn, 10) === st.gn)));
+    }
+    document.querySelectorAll('[data-tm]').forEach((b) => b.addEventListener('click', () => {
+      if (isHost !== true) return;
+      applySettings(parseInt(b.dataset.tm, 10), st.gn);
+      markSettings();
+    }));
+    document.querySelectorAll('[data-gn]').forEach((b) => b.addEventListener('click', () => {
+      if (isHost !== true) return;
+      applySettings(st.tm, parseInt(b.dataset.gn, 10));
+      markSettings();
+    }));
+
+    $('goBtn').addEventListener('click', startCountdown);
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && !$('goBtn').hidden && !$('dlg').open && document.activeElement === document.body) {
+        e.preventDefault();
+        startCountdown();
+      }
     });
     $('roomForm').addEventListener('submit', (e) => {
       e.preventDefault();

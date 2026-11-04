@@ -24,6 +24,9 @@
     let wait = parseInt(LK.store.get('lk_wait', '0'), 10);
     if (!LK.WAIT_OPTIONS.includes(wait)) wait = 0;
     let sound = LK.store.get('lk_snd', '1') === '1';
+    let target = LK.store.get('lk_tg', 'full') === 'rnd' ? 'rnd' : 'full'; // springender Punkt
+    let noTime = LK.store.get('lk_nt', '0') === '1';                      // Zeitspiel: Zeit dieses Geräts zählt nicht
+    let lastPos = null;
 
     let active = false;     // Eingabeart gewählt, Spiel läuft
     let st = null;          // letzter Spielstand
@@ -47,7 +50,16 @@
       document.querySelectorAll('.card').forEach((c) => c.classList.toggle('last', c.dataset.mode === mode));
       document.querySelectorAll('[data-w]').forEach((b) => b.setAttribute('aria-pressed', String(parseInt(b.dataset.w, 10) === wait)));
       document.querySelectorAll('[data-snd]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.snd === '1') === sound)));
+      document.querySelectorAll('[data-tg]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tg === target)));
+      document.querySelectorAll('[data-nt]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.nt === '1') === noTime)));
     }
+
+    // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
+    const useRandom = () => target === 'rnd' && mode !== 'taster';
+    const hintText = () => {
+      if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
+      return MODES[mode].hint;
+    };
 
     document.querySelectorAll('.card').forEach((c) => c.addEventListener('click', () => {
       mode = c.dataset.mode;
@@ -67,12 +79,58 @@
       showMode();
     }));
 
+    document.querySelectorAll('[data-tg]').forEach((b) => b.addEventListener('click', () => {
+      target = b.dataset.tg;
+      LK.store.set('lk_tg', target);
+      showMode();
+    }));
+    document.querySelectorAll('[data-nt]').forEach((b) => b.addEventListener('click', () => {
+      noTime = b.dataset.nt === '1';
+      LK.store.set('lk_nt', noTime ? '1' : '0');
+      showMode();
+    }));
+
+    // Zufällige Stelle für den Punkt: nicht in der Mitte, nicht am Rand, nicht wieder an der letzten Stelle
+    function placeTarget() {
+      const hold = $('hold');
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const d = Math.max(130, Math.min(Math.min(w, h) * 0.26, 260));
+      const m = d / 2 + 18;
+      const top = m;
+      const bottom = h * 0.80 - d / 2;
+      let x = w / 2;
+      let y = h / 2;
+      for (let i = 0; i < 40; i++) {
+        x = m + Math.random() * Math.max(1, w - 2 * m);
+        y = top + Math.random() * Math.max(1, bottom - top);
+        const farFromCenter = Math.hypot(x - w / 2, y - h * 0.46) > Math.min(w, h) * 0.24 + d / 2;
+        const farFromLast = !lastPos || Math.hypot(x - lastPos.x, y - lastPos.y) > d * 1.2;
+        if (farFromCenter && farFromLast) break;
+      }
+      lastPos = { x, y };
+      hold.style.width = `${d}px`;
+      hold.style.height = `${d}px`;
+      hold.style.left = `${x}px`;
+      hold.style.top = `${y}px`;
+      scrPlay.style.setProperty('--gx', `${(x / w) * 100}%`);
+      scrPlay.style.setProperty('--gy', `${(y / h) * 100}%`);
+    }
+
+    function clearTarget() {
+      const hold = $('hold');
+      ['width', 'height', 'left', 'top'].forEach((p) => hold.style.removeProperty(p));
+      scrPlay.style.removeProperty('--gx');
+      scrPlay.style.removeProperty('--gy');
+    }
+
     function begin() {
       active = true;
       scrMode.hidden = true;
       scrPlay.hidden = false;
-      scrPlay.className = `scr mode-${mode}`;
-      $('hint').textContent = MODES[mode].hint;
+      scrPlay.className = `scr mode-${mode}${useRandom() ? ' rnd' : ''}`;
+      if (useRandom()) $('hold').innerHTML = ''; else clearTarget();
+      $('hint').textContent = hintText();
       $('change').hidden = mode === 'blick'; // bei Augensteuerung kein kleiner Knopf, der aus Versehen ausgelöst wird
       sendHb();
       render();
@@ -81,7 +139,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: wait, m: mode.charAt(0), t: Date.now() });
+      net.send('hb', { id: ID, w: wait, m: mode.charAt(0), nt: noTime ? 1 : 0, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -115,6 +173,10 @@
         holding = true;
         lockUntil = performance.now() + MODES[mode].lock;
         const hold = $('hold');
+        if (useRandom()) {
+          placeTarget();
+          hold.innerHTML = slot >= 0 ? LK.shapeSvg(slot) : '';
+        }
         hold.hidden = false;
         try { hold.focus({ preventScroll: true }); } catch (e) { /* ältere Browser */ }
         setTimeout(render, MODES[mode].lock + 30);
@@ -134,7 +196,9 @@
       else if (!fresh) msg = 'Warte auf die Tafel …';
       else if (slot < 0) msg = 'Verbinde …';
       else if (isFin) msg = 'Geschafft!';
-      else if (iHold) msg = MODES[mode].hint;
+      else if (iHold) msg = (st.tm && noTime) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
+      else if (st.ph === 'ready') msg = 'Gleich geht’s los';
+      else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';
       $('msg').textContent = msg;
       $('msg').classList.toggle('quiet', !iHold && !isFin);
