@@ -58,7 +58,24 @@
 
     const scrMode = $('scr-mode');
     const scrPlay = $('scr-play');
-    const net = new LK.Net(room, startBroker, ['state']);
+    const net = new LK.Net(room, startBroker, ['state', 'ping']);
+
+    // Die Tafel will wissen, welches Gerät das ist: Form und Farbe groß zeigen, auch auf dem Startbildschirm
+    let blinkTimer = null;
+    function hideBlink() { clearTimeout(blinkTimer); $('blink').hidden = true; }
+    net.on('ping', (m) => {
+      if (m.id !== ID) return;
+      const s = st && st.players ? st.players[ID] : undefined;
+      let col = s !== undefined ? LK.COLORS[s] : '#8b90b0';
+      if (s !== undefined && st.gm === 'staffel' && st.team && st.team[ID] !== undefined) col = LK.TEAM_COLORS[st.team[ID]];
+      $('blink').style.setProperty('--bc', col);
+      $('blinkShape').innerHTML = LK.shapeSvg(s !== undefined ? s : 0);
+      $('blink').hidden = false;
+      if (navigator.vibrate) navigator.vibrate(60);
+      clearTimeout(blinkTimer);
+      blinkTimer = setTimeout(hideBlink, 6000);
+    });
+    $('blink').addEventListener('click', hideBlink);
 
     // ---------- Startbildschirm: Eingabeart wählen ----------
     function showMode() {

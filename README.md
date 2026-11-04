@@ -84,6 +84,14 @@ Auf der Tafel ein **Gerät antippen** (Knoten mit Form und Farbe). Es öffnet si
 
 Die Vorgaben werden auf dem **Tafel-Gerät** gemerkt, pro Gerät. Das Gerät behält also seine Vorgaben, wenn es am nächsten Tag wieder mitspielt. „Alles zurücksetzen“ löscht sie. Auf dem Startbildschirm des Geräts steht ein Hinweis, wenn die Tafel etwas vorgegeben hat.
 
+### Namen zuordnen und Gerät aufblinken lassen
+
+Im selben Fenster (Gerät auf der Tafel antippen):
+- **Name oder Kürzel** eintragen (bis 20 Zeichen). Er steht dann unter dem Knoten auf der Tafel. Mit ⚙ → **Namen anzeigen** blendest du die Namen für den Beamer aus oder ein.
+- **Gerät aufblinken lassen:** Das iPad zeigt 6 Sekunden lang groß seine Form und Farbe und „Dieses Gerät“, auch auf dem Startbildschirm. Ein Tipp schließt es früher. So findest du heraus, welches iPad zu welchem Knoten gehört. Es blitzt nicht, es atmet nur langsam.
+- **Datenschutz:** Die Namen werden **nur auf dem Tafel-Gerät gespeichert** (Browser-Speicher) und **nie über das Netz gesendet**. Die iPads kennen die Namen nicht. Nur das Aufblink-Signal geht an die Geräte-Kennung.
+- **Grenzen:** Das iPad hat eine feste, zufällige Kennung im Browser. Wird dort der Website-Speicher gelöscht oder ein anderer Browser benutzt, ist es ein neues Gerät und muss neu zugeordnet werden. Wechselt ein Kind das iPad, hängst du den Namen um. Die Namen werden nur von der Haupt-Tafel gespeichert, nicht von einer Mitschau-Tafel. Den Gerätenamen eines iPads kann eine Webseite nicht auslesen.
+
 ## Staffel: Strafpause bei Fehltipps
 
 - **Freiwillig und zweifach abgesichert:** Auf der Tafel muss die **Strafpause** eingeschaltet sein (⚙ → Staffel → aus, 2 s oder 4 s), **und** das Gerät muss auf „mit Strafe“ stehen (am Gerät selbst oder von der Tafel vorgegeben). Standard ist beides aus.

@@ -68,6 +68,11 @@
     let cfgAll = {};
     try { cfgAll = JSON.parse(LK.store.get('lk_cfg', '{}')) || {}; } catch (e) { cfgAll = {}; }
     const saveCfg = () => LK.store.set('lk_cfg', JSON.stringify(cfgAll));
+    // Spitznamen der Geräte: bleiben auf diesem Tafel-Gerät und werden nie gesendet
+    let names = {};
+    try { names = JSON.parse(LK.store.get('lk_names', '{}')) || {}; } catch (e) { names = {}; }
+    const saveNames = () => LK.store.set('lk_names', JSON.stringify(names));
+    let showNames = LK.store.get('lk_board_names', '1') === '1';
     let soundOn = LK.store.get('lk_board_snd', '1') === '1';
     let since = Date.now(); // Zeitspiel: Beginn des gerade laufenden Zeitabschnitts
 
@@ -975,9 +980,22 @@
           ctx.font = `600 ${Math.round(R * 0.5)}px ${SANS}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('Strafpause', n.x, n.y + R * 1.9);
+          ctx.fillText('Strafpause', n.x, n.y + R * 2.7);
         }
       });
+      // Spitznamen unter den Knoten
+      if (showNames) {
+        ctx.font = `500 ${Math.round(R * 0.58)}px ${SANS}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        Object.keys(nodes).forEach((id) => {
+          const n = nodes[id];
+          if (!names[id] || n.dying) return;
+          ctx.fillStyle = 'rgba(225,230,255,0.88)';
+          ctx.fillText(names[id], n.x, n.y + R * 1.6);
+        });
+        ctx.textBaseline = 'middle';
+      }
       // Nummer des Lichts (Doppelte Lichter)
       if (view.gm === 'doppel') {
         ctx.fillStyle = 'rgba(6,7,13,0.85)';
@@ -1148,6 +1166,7 @@
     $('gear').addEventListener('click', () => {
       $('roomInput').value = room;
       $('sndBtn').textContent = soundOn ? 'Ton: an' : 'Ton: aus';
+      $('namesBtn').textContent = showNames ? 'Namen anzeigen: an' : 'Namen anzeigen: aus';
       $('restartBtn').hidden = isHost !== true;
       $('modeBox').hidden = isHost !== true;
       markSettings();
@@ -1160,6 +1179,11 @@
       LK.store.set('lk_board_snd', soundOn ? '1' : '0');
       if (soundOn) LK.audio.init();
       $('sndBtn').textContent = soundOn ? 'Ton: an' : 'Ton: aus';
+    });
+    $('namesBtn').addEventListener('click', () => {
+      showNames = !showNames;
+      LK.store.set('lk_board_names', showNames ? '1' : '0');
+      $('namesBtn').textContent = showNames ? 'Namen anzeigen: an' : 'Namen anzeigen: aus';
     });
     $('fsBtn').addEventListener('click', () => {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -1195,13 +1219,33 @@
         seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
       });
     }
+    function devHeading() {
+      const n = nodes[devId];
+      if (!n) return;
+      const title = $('devTitle');
+      title.innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> `;
+      title.appendChild(document.createTextNode(names[devId] || 'Gerät')); // Name als Text, nie als HTML
+    }
     function openDev(id) {
       devId = id;
-      const n = nodes[id];
-      $('devTitle').innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> Gerät`;
+      devHeading();
+      $('devName').value = names[id] || '';
       markDev();
       $('devDlg').showModal();
     }
+    $('devName').addEventListener('input', () => {
+      if (devId === null) return;
+      const v = $('devName').value.trim().slice(0, 20);
+      if (v) names[devId] = v; else delete names[devId];
+      saveNames();
+      devHeading();
+    });
+    $('devBlink').addEventListener('click', () => {
+      if (devId === null) return;
+      net.send('ping', { id: devId });
+      $('devBlink').textContent = 'Signal gesendet ✓';
+      setTimeout(() => { $('devBlink').textContent = 'Gerät aufblinken lassen'; }, 1800);
+    });
     cv.addEventListener('click', (e) => {
       if (isHost !== true || $('dlg').open || $('devDlg').open || !$('startOv').hidden) return;
       const R = baseR();

@@ -109,7 +109,14 @@
 
   <dialog id="devDlg">
     <h2 id="devTitle">Gerät</h2>
-    <p class="info">Gilt nur für dieses Gerät und geht vor, was am Gerät eingestellt ist. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.</p>
+    <div class="stack tight">
+      <label for="devName">Name oder Kürzel (bleibt nur auf dieser Tafel, wird nie gesendet)</label>
+      <div class="row">
+        <input id="devName" maxlength="20" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="z. B. Ben">
+        <button id="devBlink" class="btn" type="button">Gerät aufblinken lassen</button>
+      </div>
+    </div>
+    <p class="info">Die folgenden Einstellungen gelten nur für dieses Gerät und gehen vor, was am Gerät eingestellt ist. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.</p>
     <div class="stack tight">
       <label>Tippfläche</label>
       <div class="seg wide" data-cfg="rnd" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">fest</button><button data-v="1">springender Punkt</button></div>
@@ -181,12 +188,19 @@
       <button id="copyBtn" class="btn">Spieler-Link kopieren</button>
       <button id="newRoomBtn" class="btn ghost">Neuen Raumcode erzeugen</button>
       <button id="sndBtn" class="btn ghost">Ton: an</button>
+      <button id="namesBtn" class="btn ghost">Namen anzeigen: an</button>
       <button id="fsBtn" class="btn ghost">Vollbild</button>
       <button id="restartBtn" class="btn ghost">Neue Runde starten</button>
     </div>
     <button id="dlgClose" class="btn close">Schließen</button>
   </dialog>
 </section>
+
+<!-- Aufblinken: die Tafel will wissen, welches Gerät das ist -->
+<div id="blink" hidden aria-live="polite">
+  <div id="blinkShape"></div>
+  <p>Dieses Gerät</p>
+</div>
 
 <script src="lib/mqtt.min.js"></script>
 <script src="lib/qrcode.js"></script>
