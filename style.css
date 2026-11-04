@@ -282,6 +282,8 @@ label { color: var(--muted); font-size: 14px; text-align: left; }
   width: min(62vmin, 440px);
   transform: translate(-50%, -50%);
   padding: 16px;
+  z-index: 4; /* über dem Los-Knopf (3), unter dem Startbildschirm (5) */
+  background: rgba(10, 12, 24, 0.96);
 }
 #qrBox.big .qrText { font-size: clamp(13px, 2vmin, 18px); }
 #qrBox.big .qrText b { font-size: clamp(18px, 3vmin, 26px); }
