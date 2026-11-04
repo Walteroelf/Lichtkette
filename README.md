@@ -27,7 +27,25 @@ Ist die Runde voll (im ruhigen Modus mindestens 8 Weitergaben, bei vielen Gerät
 
 Jedes Gerät hat eine eigene **Farbe und Form** (Kreis, Dreieck, Quadrat …), damit man sich auch ohne Farbensehen zuordnen kann.
 
-## Zeitspiel: die Bestzeit schlagen
+## Spielarten
+
+Auf der Tafel unter ⚙ → **Spielart** wählen. Die Spielart gilt für alle Geräte. Unter der Auswahl stehen die passenden Optionen, dazu **Weitergaben pro Runde** (10, 15, 20 oder „Auto“).
+
+| Spielart | Ablauf |
+|---|---|
+| **Lichtkette** | Ein Licht wandert zufällig. Wahlweise als Zeitspiel mit Bestzeit (siehe unten). |
+| **Rhythmus** | Das Licht springt im **Takt** weiter (Tempo: langsam, mittel, schnell). Gibt ein Gerät das Licht weiter, geht es erst auf dem nächsten Schlag los. Jede Eingabe klingt also im Takt, egal wann sie kommt. Wer länger braucht, hält das Licht einfach, der Beat läuft weiter. Alle 3 Weitergaben kommt eine Schicht dazu: Bassdrum, Hi-Hat, Clap, Bass. |
+| **Staffel** | Zwei Teams (Blau und Pink), jedes mit **eigenem Licht**. Wer zuerst die Weitergaben schafft, gewinnt. Die Teams sehen oben ihren Fortschritt. |
+| **Doppelte Lichter** | Zwei oder drei Lichter gleichzeitig, jedes mit eigener Farbe und Nummer. Ein Gerät hat höchstens ein Licht. Gezählt werden alle Weitergaben zusammen. |
+| **Schatz-Licht** | Bei einzelnen Geräten liegt ein Stern (bei etwa jedem zweiten, höchstens drei). Landet das Licht dort, wird er eingesammelt, und ein neuer erscheint woanders. Ziel: 10, 15 oder 20 Sterne (Auto: 8). Das Licht wählt mit etwas Vorliebe Geräte mit Stern. |
+
+**Start:** Staffel, Rhythmus und Zeitspiel beginnen mit „Los ▶“ und Countdown. Die anderen starten sofort.
+
+### Staffel: Teams und „Zeit zählt nicht“
+- **Team** wählt jedes Gerät auf dem Startbildschirm: automatisch (die Tafel verteilt gleichmäßig), Blau oder Pink. Damit lassen sich Teams so mischen, dass beide ähnlich fit sind.
+- **Zeit zählt nicht:** Hat ein solches Gerät das Licht, **wartet das andere Team** („Kurze Pause …“, auf der Tafel ein Pause-Zeichen), bis es weitergegeben hat. Die Weitergabe zählt für das Team mit. **Achtung:** Dadurch kostet dieses Team für diese Weitergabe keine Zeit, ein Team mit mehr solchen Geräten ist im Vorteil. Am fairsten ist es, sie gleichmäßig auf beide Teams zu verteilen.
+
+## Zeitspiel: die Bestzeit schlagen (Spielart Lichtkette)
 
 Auf der Tafel unter ⚙ lässt sich von **Ruhig** auf **Zeitspiel** umschalten.
 
@@ -82,6 +100,6 @@ Links und Parameter:
 
 ## Ideen für später
 
-- Weitere Spiele auf derselben Verbindung (Beat, Lichtkunst)
+- Lichtbild: jede Weitergabe malt einen Strich in einem Bild, das man speichern kann
 - Auswahl, wer das Licht bekommt, für Geräte mit mehreren Eingabeflächen
 - Installierbar als App und offlinefähig (Service Worker)

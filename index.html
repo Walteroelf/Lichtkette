@@ -50,9 +50,13 @@
       <span>Tippfläche</span>
       <div class="seg"><button data-tg="full">wie gewohnt</button><button data-tg="rnd">springender Punkt</button></div>
     </div>
-    <div class="opt" title="Im Zeitspiel steht die Uhr, solange dieses Gerät das Licht hat.">
-      <span>Zeitspiel: Zeit dieses Geräts</span>
+    <div class="opt" title="Im Zeitspiel steht die Uhr, solange dieses Gerät das Licht hat. In der Staffel wartet das andere Team.">
+      <span>Zeit dieses Geräts (Zeitspiel, Staffel)</span>
       <div class="seg"><button data-nt="0">zählt</button><button data-nt="1">zählt nicht</button></div>
+    </div>
+    <div class="opt" title="Nur für die Staffel. Bei „automatisch“ verteilt die Tafel die Geräte gleichmäßig auf beide Teams.">
+      <span>Team (Staffel)</span>
+      <div class="seg"><button data-team="">automatisch</button><button data-team="a">Blau</button><button data-team="b">Pink</button></div>
     </div>
   </div>
   <p class="foot"><span id="roomInfo"></span> · <a id="asBoard" href="#">Dieses Gerät als Tafel</a></p>
@@ -65,6 +69,7 @@
   <div id="center">
     <div id="shape"></div>
   </div>
+  <p id="tag"></p>
   <p id="msg"></p>
   <p id="hint" class="sr-only"></p>
   <button id="hold" aria-label="Licht weitergeben" hidden></button>
@@ -109,8 +114,27 @@
     </form>
     <div id="modeBox" class="stack">
       <label>Spielart</label>
-      <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
-      <label>Weitergaben pro Runde (im Zeitspiel: Bestzeit schlagen)</label>
+      <div class="gmgrid">
+        <button class="gm" data-gm="klassik">Lichtkette</button>
+        <button class="gm" data-gm="rhythmus">Rhythmus</button>
+        <button class="gm" data-gm="staffel">Staffel</button>
+        <button class="gm" data-gm="doppel">Doppelte Lichter</button>
+        <button class="gm" data-gm="schatz">Schatz-Licht</button>
+      </div>
+      <p id="gmInfo" class="info"></p>
+      <div data-for="klassik" class="stack tight">
+        <label>Modus</label>
+        <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
+      </div>
+      <div data-for="doppel" class="stack tight">
+        <label>Lichter gleichzeitig</label>
+        <div class="seg wide"><button data-nl="2">2</button><button data-nl="3">3</button></div>
+      </div>
+      <div data-for="rhythmus" class="stack tight">
+        <label>Tempo</label>
+        <div class="seg wide"><button data-bpm="70">langsam</button><button data-bpm="90">mittel</button><button data-bpm="110">schnell</button></div>
+      </div>
+      <label id="gnLabel">Weitergaben pro Runde</label>
       <div class="seg wide"><button data-gn="0">Auto</button><button data-gn="10">10</button><button data-gn="15">15</button><button data-gn="20">20</button></div>
     </div>
     <div class="stack">

@@ -26,9 +26,10 @@
     let sound = LK.store.get('lk_snd', '1') === '1';
     let target = LK.store.get('lk_tg', 'full') === 'rnd' ? 'rnd' : 'full'; // springender Punkt
     let noTime = LK.store.get('lk_nt', '0') === '1';                      // Zeitspiel: Zeit dieses Geräts zählt nicht
+    let team = ['a', 'b'].includes(LK.store.get('lk_team', '')) ? LK.store.get('lk_team', '') : ''; // Wunschteam für die Staffel
     let lastPos = null;
 
-    let active = false;     // Eingabeart gewählt, Spiel läuft
+    let active = false;    // Eingabeart gewählt, Spiel läuft
     let st = null;          // letzter Spielstand
     let lastStateAt = 0;
     let holding = false;
@@ -52,6 +53,7 @@
       document.querySelectorAll('[data-snd]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.snd === '1') === sound)));
       document.querySelectorAll('[data-tg]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tg === target)));
       document.querySelectorAll('[data-nt]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.nt === '1') === noTime)));
+      document.querySelectorAll('[data-team]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.team === team)));
     }
 
     // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
@@ -87,6 +89,11 @@
     document.querySelectorAll('[data-nt]').forEach((b) => b.addEventListener('click', () => {
       noTime = b.dataset.nt === '1';
       LK.store.set('lk_nt', noTime ? '1' : '0');
+      showMode();
+    }));
+    document.querySelectorAll('[data-team]').forEach((b) => b.addEventListener('click', () => {
+      team = b.dataset.team;
+      LK.store.set('lk_team', team);
       showMode();
     }));
 
@@ -139,7 +146,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: wait, m: mode.charAt(0), nt: noTime ? 1 : 0, t: Date.now() });
+      net.send('hb', { id: ID, w: wait, m: mode.charAt(0), nt: noTime ? 1 : 0, tt: team, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -148,7 +155,7 @@
     net.onstatus = () => render();
 
     net.on('state', (s) => {
-      if (!s.players || typeof s.seq !== 'number') return;
+      if (!s.players || typeof s.seq !== 'number' || !Array.isArray(s.lights)) return;
       st = s;
       lastStateAt = Date.now();
       render();
@@ -162,12 +169,20 @@
       const mySlot = fresh && st.players[ID] !== undefined ? st.players[ID] : -1;
       if (mySlot !== slot) {
         slot = mySlot;
-        const col = slot >= 0 ? LK.COLORS[slot] : '#8b90b0';
-        scrPlay.style.setProperty('--c', col);
         $('shape').innerHTML = slot >= 0 ? LK.shapeSvg(slot) : '';
       }
-      const iHold = !!(fresh && slot >= 0 && st.holder === ID && !st.finale);
+      const li = fresh ? st.lights.findIndex((l) => l.h === ID) : -1;
+      const light = li >= 0 ? st.lights[li] : null;
+      const iHold = !!(fresh && slot >= 0 && light && !st.finale && st.ph === 'play');
       const isFin = !!(fresh && st.finale && slot >= 0);
+      const paused = !!(iHold && light.z); // Staffel: das andere Team hat gerade Vorrang
+      const myTeam = fresh && st.team ? st.team[ID] : undefined;
+
+      // Farbe: in der Staffel die des Teams, bei Doppelten Lichtern die des Lichts, sonst die eigene
+      let col = slot >= 0 ? LK.COLORS[slot] : '#8b90b0';
+      if (slot >= 0 && st.gm === 'staffel' && myTeam !== undefined) col = LK.TEAM_COLORS[myTeam];
+      else if (iHold && st.gm === 'doppel') col = LK.LIGHT_COLORS[light.k % 3];
+      scrPlay.style.setProperty('--c', col);
 
       if (iHold && !holding) {
         holding = true;
@@ -187,38 +202,55 @@
 
       scrPlay.classList.toggle('on', iHold);
       scrPlay.classList.toggle('fin', isFin);
-      $('hold').classList.toggle('locked', iHold && performance.now() < lockUntil);
+      $('hold').classList.toggle('locked', iHold && (performance.now() < lockUntil || paused));
 
       const online = net.connected;
       $('conn').className = `dot ${online ? (fresh ? 'ok' : 'warn') : 'bad'}`;
+      const clockGame = fresh && st.tm && st.gm === 'klassik';
       let msg = '';
       if (!online) msg = 'Keine Verbindung …';
       else if (!fresh) msg = 'Warte auf die Tafel …';
       else if (slot < 0) msg = 'Verbinde …';
-      else if (isFin) msg = 'Geschafft!';
-      else if (iHold) msg = (st.tm && noTime) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
+      else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? 'Dein Team gewinnt!' : 'Geschafft! Gut gespielt') : 'Geschafft!';
+      else if (paused) msg = 'Kurze Pause …';
+      else if (iHold) msg = (clockGame && noTime) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';
       $('msg').textContent = msg;
       $('msg').classList.toggle('quiet', !iHold && !isFin);
 
-      $('prog').firstElementChild.style.width = `${fresh && st.goal ? Math.min(100, (st.chain / st.goal) * 100) : 0}%`;
+      // Kleine Zeile oben: Team, Licht-Nummer, Stern
+      const bits = [];
+      if (fresh && st.gm === 'staffel' && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
+      if (iHold && st.gm === 'doppel') bits.push(`Licht ${light.k + 1}`);
+      if (fresh && st.gm === 'schatz' && st.stars && st.stars.includes(ID)) bits.push('★ Hier liegt ein Stern');
+      $('tag').textContent = bits.join(' · ');
+
+      let frac = 0;
+      if (fresh && st.goal) {
+        if (st.gm === 'staffel') frac = myTeam !== undefined ? (st.tc[myTeam] || 0) / st.goal : 0;
+        else if (st.gm === 'schatz') frac = (st.sc || 0) / st.goal;
+        else frac = st.chain / st.goal;
+      }
+      $('prog').firstElementChild.style.width = `${Math.min(100, frac * 100)}%`;
     }
 
     // ---------- Das Licht weitergeben ----------
     function confirm() {
       if (!holding || performance.now() < lockUntil || !st) return;
+      const light = st.lights.find((l) => l.h === ID);
+      if (!light || light.z) return; // in der Staffel: Pause, das andere Team ist gerade dran
       holding = false;
-      const seq = st.seq;
+      const s = light.s;
       const epoch = st.epoch;
-      sendAct(seq, epoch);
+      sendAct(s, epoch);
       // Ging die Nachricht verloren, wird sie wiederholt, bis die Tafel das Licht weitergegeben hat
       let tries = 0;
       const again = () => {
-        if (!st || st.seq !== seq || tries >= 4) return;
+        if (!st || !st.lights.some((l) => l.h === ID && l.s === s) || tries >= 4) return;
         tries++;
-        sendAct(seq, epoch);
+        sendAct(s, epoch);
         resendTimer = setTimeout(again, RESEND_MS);
       };
       clearTimeout(resendTimer);
@@ -232,7 +264,7 @@
       $('msg').textContent = 'Weitergegeben ✓';
     }
 
-    function sendAct(seq, epoch) { net.send('act', { id: ID, seq, epoch }); }
+    function sendAct(s, epoch) { net.send('act', { id: ID, s, epoch }); }
 
     function sent() {
       const r = $('ripple');
