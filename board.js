@@ -36,9 +36,10 @@
       // acc = bisher gezählte Zeit in ms, run = Uhr läuft, ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const g = parseInt(LK.store.get('lk_gn', '0'), 10); return GN_OPTIONS.includes(g) ? g : 0; })(),
-      ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, cd: 0,
+      ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, cd: 0, n: 0,
     };
-    const bestFor = (goal) => parseInt(LK.store.get(`lk_best_${goal}`, '0'), 10) || 0;
+    // Bestzeit gilt nur für gleich viele Weitergaben UND gleich viele Geräte, sonst ist sie nicht vergleichbar
+    const bestFor = (goal, n) => parseInt(LK.store.get(`lk_best_${goal}_${n}`, '0'), 10) || 0;
 
     const net = new LK.Net(room, startBroker, ['hb', 'act', 'host', 'state']);
 
@@ -136,7 +137,8 @@
       st.rec = 0;
       st.cd = 0;
       st.ph = st.tm ? 'ready' : 'play';
-      st.best = st.tm ? bestFor(st.goal) : 0;
+      st.n = aliveIds().length;
+      st.best = st.tm ? bestFor(st.goal, st.n) : 0;
       since = Date.now();
       setHolder(st.ph === 'play' ? pickNext() : null);
     }
@@ -145,6 +147,8 @@
       if (isHost !== true || st.ph !== 'ready' || !aliveIds().length) return;
       st.ph = 'count';
       st.cd = 3000;
+      st.n = aliveIds().length; // ab jetzt zählt diese Geräteanzahl für die Bestzeit
+      st.best = bestFor(st.goal, st.n);
       publish();
       clearTimeout(cdTimer);
       cdTimer = setTimeout(() => {
@@ -173,10 +177,10 @@
       st.finale = true;
       if (st.tm) {
         st.ft = st.acc;
-        const prevBest = bestFor(st.goal);
+        const prevBest = bestFor(st.goal, st.n);
         st.rec = prevBest === 0 ? 2 : (st.ft < prevBest ? 1 : 0);
-        if (prevBest === 0 || st.ft < prevBest) LK.store.set(`lk_best_${st.goal}`, String(st.ft));
-        st.best = bestFor(st.goal);
+        if (prevBest === 0 || st.ft < prevBest) LK.store.set(`lk_best_${st.goal}_${st.n}`, String(st.ft));
+        st.best = bestFor(st.goal, st.n);
       }
       setHolder(null);
       publish();
@@ -207,6 +211,11 @@
 
     function publish() {
       rollClock();
+      // Vor dem Start passt sich die angezeigte Bestzeit an die Zahl der Geräte an, die gerade da sind
+      if (st.tm && st.ph === 'ready') {
+        st.n = aliveIds().length;
+        st.best = bestFor(st.goal, st.n);
+      }
       st.ts = Date.now();
       net.send('state', st);
       applyState(st);
@@ -287,7 +296,7 @@
     const view = {
       seq: -1, round: -1, holder: null, holderVis: null, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, autoMs: 0, autoSince: 0, init: false,
-      tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0, ft: 0, rec: 0, best: 0, cd: 0, finDur: FINALE_MS,
+      tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0, ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -375,6 +384,7 @@
       view.ft = s.ft || 0;
       view.rec = s.rec || 0;
       view.best = s.best || 0;
+      view.n = s.n || 0;
       view.cd = s.cd || 0;
       view.gn = s.gn;
       view.goalN = s.goal;
@@ -635,8 +645,12 @@
         const good = view.rec > 0;
         ctx.fillStyle = good ? `rgba(110,231,183,${finA})` : `rgba(200,205,240,${finA * 0.8})`;
         ctx.font = `600 ${Math.round(hr * 0.4)}px ${sans}`;
-        const sub = view.rec === 1 ? 'Neue Bestzeit!' : (view.rec === 2 ? 'Bestzeit gesetzt' : `Bestzeit ${fmtTime(view.best)}`);
+        const devDat = `${view.n} ${view.n === 1 ? 'Gerät' : 'Geräten'}`;
+        const sub = view.rec === 1 ? 'Neue Bestzeit!' : (view.rec === 2 ? 'Erste Bestzeit gesetzt' : `Bestzeit ${fmtTime(view.best)}`);
         ctx.fillText(sub, cx, cy + hr * 0.95);
+        ctx.fillStyle = `rgba(160,168,210,${finA * 0.8})`;
+        ctx.font = `500 ${Math.round(hr * 0.28)}px ${sans}`;
+        ctx.fillText(`bei ${devDat} und ${view.goalN} Weitergaben`, cx, cy + hr * 1.5);
       } else if (fin) {
         ctx.fillStyle = `rgba(235,238,255,${finA})`;
         ctx.font = `600 ${Math.round(hr * 0.42)}px ${sans}`;
@@ -670,11 +684,10 @@
         ctx.fillStyle = 'rgba(240,242,255,0.92)';
         ctx.font = `600 ${fs}px ${mono}`;
         ctx.fillText(fmtTime(timeMs), cx, H * 0.075);
-        if (view.best) {
-          ctx.fillStyle = 'rgba(160,168,210,0.8)';
-          ctx.font = `500 ${Math.round(fs * 0.36)}px ${sans}`;
-          ctx.fillText(`Bestzeit ${fmtTime(view.best)}`, cx, H * 0.075 + fs * 0.78);
-        }
+        const dev = `${view.n} ${view.n === 1 ? 'Gerät' : 'Geräte'}`;
+        ctx.fillStyle = 'rgba(160,168,210,0.8)';
+        ctx.font = `500 ${Math.round(fs * 0.36)}px ${sans}`;
+        ctx.fillText(view.best ? `Bestzeit ${fmtTime(view.best)} · ${dev}` : `Noch keine Bestzeit für ${dev}`, cx, H * 0.075 + fs * 0.78);
       }
     }
 

@@ -33,7 +33,7 @@ Auf der Tafel unter ⚙ lässt sich von **Ruhig** auf **Zeitspiel** umschalten.
 
 - **Weitergaben pro Runde:** 10, 15 oder 20 (oder „Auto“ im ruhigen Modus). Im Zeitspiel gilt ohne Auswahl 10.
 - **Ablauf:** Die Tafel zeigt „Los ▶“ (auch mit Enter oder Leertaste). Nach 3, 2, 1 erscheint das erste Licht, und die Uhr läuft mit. Mit der letzten Weitergabe stoppt sie.
-- **Endzeit und Bestzeit:** Die Tafel zeigt die Endzeit und „Neue Bestzeit!“, wenn die alte unterboten wurde. Die Bestzeit wird auf dem Tafel-Gerät gemerkt, getrennt für 10, 15 und 20 Weitergaben.
+- **Endzeit und Bestzeit:** Die Tafel zeigt die Endzeit und „Neue Bestzeit!“, wenn die alte unterboten wurde. Die Bestzeit wird auf dem Tafel-Gerät gemerkt, getrennt nach **Weitergaben (10, 15, 20) und Anzahl der Geräte**. Mit mehr Geräten gibt es mehr Weitergaben pro Gerät, deshalb wären Zeiten sonst nicht vergleichbar. Vor dem Start steht oben die Bestzeit für die Zahl der Geräte, die gerade da sind, oder „Noch keine Bestzeit für 3 Geräte“.
 - **Teamzeit:** Es gibt nur die Zeit der Gruppe. Einzelzeiten werden nirgends angezeigt.
 - **Kein Auto-Weiterwandern** im Zeitspiel, damit die Zeit nicht verfälscht wird.
 
