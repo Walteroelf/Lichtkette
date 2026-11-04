@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#06070d">
+<title>Lichtkette</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Startseite ohne Raum -->
+<section id="scr-home" class="scr" hidden>
+  <h1 class="logo">Lichtkette</h1>
+  <p class="sub">Ein gemeinsames Spiel für alle Geräte</p>
+  <div class="home-actions">
+    <a class="big-btn" href="?tafel=1">Tafel starten<small>Beamer, Smartboard oder Laptop</small></a>
+    <form id="joinForm" class="join">
+      <label for="joinCode">Mitspielen mit Raumcode</label>
+      <div class="row">
+        <input id="joinCode" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Raumcode">
+        <button class="btn" type="submit">Los</button>
+      </div>
+      <p id="joinErr" class="err" hidden>Der Code besteht aus 4 bis 24 Buchstaben, Zahlen oder Bindestrichen.</p>
+    </form>
+  </div>
+</section>
+
+<!-- Spieler: Eingabeart wählen -->
+<section id="scr-mode" class="scr" hidden>
+  <h1>Wie spielst du?</h1>
+  <div class="cards">
+    <button class="card" data-mode="touch"><span class="ico">👆</span><b>Tippen</b><small>iPad, Touchscreen</small></button>
+    <button class="card" data-mode="taster"><span class="ico">🔘</span><b>Taster</b><small>Taster, Schalter, Leertaste</small></button>
+    <button class="card" data-mode="blick"><span class="ico">👁</span><b>Blick / Maus</b><small>Augensteuerung, Maus</small></button>
+  </div>
+  <div class="opts">
+    <div class="opt">
+      <span>Licht wandert weiter nach</span>
+      <div class="seg">
+        <button data-w="0">nie</button><button data-w="10">10 s</button><button data-w="30">30 s</button>
+      </div>
+    </div>
+    <div class="opt">
+      <span>Ton auf diesem Gerät</span>
+      <div class="seg"><button data-snd="1">an</button><button data-snd="0">aus</button></div>
+    </div>
+  </div>
+  <p class="foot"><span id="roomInfo"></span> · <a id="asBoard" href="#">Dieses Gerät als Tafel</a></p>
+</section>
+
+<!-- Spieler: Spielansicht -->
+<section id="scr-play" class="scr" hidden>
+  <div id="glow"></div>
+  <div id="ripple"></div>
+  <div id="center">
+    <div id="shape"></div>
+  </div>
+  <p id="msg"></p>
+  <p id="hint" class="sr-only"></p>
+  <button id="hold" aria-label="Licht weitergeben" hidden></button>
+  <div id="prog"><i></i></div>
+  <span id="conn" class="dot bad"></span>
+  <button id="change" aria-label="Eingabeart ändern">⋯</button>
+</section>
+
+<!-- Tafel -->
+<section id="scr-board" class="scr" hidden>
+  <canvas id="cv"></canvas>
+  <div id="idle" class="idle">
+    <h1 class="logo">Lichtkette</h1>
+    <p>Scannt den QR-Code mit der Kamera und macht mit.</p>
+  </div>
+  <div id="qrBox" class="big" title="Tippen zum Vergrößern oder Verkleinern">
+    <div id="qrImg"></div>
+    <div class="qrText"><b>Mitspielen</b><span id="qrLink"></span></div>
+  </div>
+  <div id="hud">
+    <span id="connDot" class="dot bad"></span>
+    <span id="count">0 Geräte</span>
+    <span id="viewerTag" hidden>Mitschau</span>
+  </div>
+  <button id="gear" aria-label="Einstellungen">⚙</button>
+
+  <div id="startOv" class="overlay">
+    <h1 class="logo">Lichtkette</h1>
+    <button id="startBtn" class="big-btn">Tafel starten ▶<small>Ton und Bildschirm bleiben an</small></button>
+  </div>
+
+  <dialog id="dlg">
+    <h2>Tafel</h2>
+    <form id="roomForm" class="stack">
+      <label for="roomInput">Raumcode (bleibt gleich, solange du ihn nicht änderst)</label>
+      <div class="row">
+        <input id="roomInput" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="btn" type="submit">Übernehmen</button>
+      </div>
+      <p id="roomErr" class="err" hidden>4 bis 24 Zeichen: Buchstaben, Zahlen, Bindestrich.</p>
+    </form>
+    <div class="stack">
+      <button id="copyBtn" class="btn">Spieler-Link kopieren</button>
+      <button id="newRoomBtn" class="btn ghost">Neuen Raumcode erzeugen</button>
+      <button id="sndBtn" class="btn ghost">Ton: an</button>
+      <button id="fsBtn" class="btn ghost">Vollbild</button>
+      <button id="restartBtn" class="btn ghost">Neue Runde starten</button>
+    </div>
+    <button id="dlgClose" class="btn close">Schließen</button>
+  </dialog>
+</section>
+
+<script src="lib/mqtt.min.js"></script>
+<script src="lib/qrcode.js"></script>
+<script src="shared.js"></script>
+<script src="net.js"></script>
+<script src="board.js"></script>
+<script src="player.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
