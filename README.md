@@ -84,13 +84,34 @@ Auf der Tafel ein **Gerät antippen** (Knoten mit Form und Farbe). Es öffnet si
 
 Die Vorgaben werden auf dem **Tafel-Gerät** gemerkt, pro Gerät. Das Gerät behält also seine Vorgaben, wenn es am nächsten Tag wieder mitspielt. „Alles zurücksetzen“ löscht sie. Auf dem Startbildschirm des Geräts steht ein Hinweis, wenn die Tafel etwas vorgegeben hat.
 
-### Namen zuordnen und Gerät aufblinken lassen
+Im Fenster gibt es außerdem **Gerät aufblinken lassen**: Das iPad zeigt 6 Sekunden lang groß seine Form und Farbe und „Dieses Gerät“, auch auf dem Startbildschirm. Ein Tipp schließt es früher. So findest du heraus, welches iPad zu welchem Knoten gehört. Es blitzt nicht, es atmet nur langsam.
 
-Im selben Fenster (Gerät auf der Tafel antippen):
-- **Name oder Kürzel** eintragen (bis 20 Zeichen). Er steht dann unter dem Knoten auf der Tafel. Mit ⚙ → **Namen anzeigen** blendest du die Namen für den Beamer aus oder ein.
-- **Gerät aufblinken lassen:** Das iPad zeigt 6 Sekunden lang groß seine Form und Farbe und „Dieses Gerät“, auch auf dem Startbildschirm. Ein Tipp schließt es früher. So findest du heraus, welches iPad zu welchem Knoten gehört. Es blitzt nicht, es atmet nur langsam.
-- **Datenschutz:** Die Namen werden **nur auf dem Tafel-Gerät gespeichert** (Browser-Speicher) und **nie über das Netz gesendet**. Die iPads kennen die Namen nicht. Nur das Aufblink-Signal geht an die Geräte-Kennung.
-- **Grenzen:** Das iPad hat eine feste, zufällige Kennung im Browser. Wird dort der Website-Speicher gelöscht oder ein anderer Browser benutzt, ist es ein neues Gerät und muss neu zugeordnet werden. Wechselt ein Kind das iPad, hängst du den Namen um. Die Namen werden nur von der Haupt-Tafel gespeichert, nicht von einer Mitschau-Tafel. Den Gerätenamen eines iPads kann eine Webseite nicht auslesen.
+## Lehrer-Ansicht (Spielleitung)
+
+Die **Tafel** zeigt nur, was alle sehen dürfen: keine Namen und keine Geräteinfos. Alles Private steht in der **Lehrer-Ansicht** auf deinem iPad oder Laptop. Die Spielleitung läuft weiter auf dem Tafel-Rechner, dein Gerät ist die Fernbedienung.
+
+**Einrichten (einmal):**
+1. Auf der Tafel ⚙ → **Lehrer-QR anzeigen**. Das ist ein **anderer Code** als der Schüler-QR.
+2. Mit dem Lehrer-Gerät scannen. Der Link öffnet die Lehrer-Ansicht, der Schlüssel wird auf dem Gerät gemerkt und verschwindet aus der Adresszeile.
+3. Auf der Tafel **Verbergen** tippen. Der Code verschwindet nach 90 Sekunden auch von allein. Achte darauf, dass kein Schüler ihn scannt.
+4. Später öffnest du die Lehrer-Ansicht einfach wieder über das Lesezeichen oder die Verlaufsseite (`?lehrer=1&r=RAUMCODE`), der Schlüssel ist gespeichert.
+
+**Was du dort kannst:**
+- **Pause / Weiter** (hält das Spiel auf Tafel und Geräten an), **Los**, **Neue Runde**
+- **Spielart und Optionen** wechseln (alles, was auch in der Tafel unter ⚙ steht)
+- **Geräteliste** mit Form, Farbe, Verbindung („hat das Licht“, „Verbindung weg“)
+- pro Gerät: **Name oder Kürzel**, **Aufblinken**, alle **Einstellungen** (Tippfläche, Größe, Fehltipps, Zeit zählt nicht, Weiterwandern, Team) und **Zurücksetzen**
+
+**Datenschutz und Sicherheit:**
+- **Namen** stehen nur auf dem Lehrer-Gerät (Browser-Speicher). Sie werden nie gesendet und stehen nicht auf der Tafel.
+- **Befehle und Geräteinfos** zwischen Lehrer-Gerät und Tafel sind mit dem Schlüssel **verschlüsselt** (AES-GCM). Ohne Schlüssel kann niemand mitlesen oder Befehle senden, auch wenn er den Raumcode aus dem Schüler-QR kennt. Veränderte oder fremde Befehle werden verworfen, wiederholte Befehle ebenfalls.
+- Der Schlüssel steht im Link **hinter dem `#`**, das geht nie an einen Server. Er liegt auf dem Tafel-Rechner und auf dem Lehrer-Gerät.
+- **Neuen Schlüssel erzeugen** (im Lehrer-QR-Fenster) sperrt alle bisherigen Lehrer-Geräte aus. Das ist sinnvoll, falls ein Schüler den Code gesehen hat.
+- Die Verschlüsselung braucht eine sichere Verbindung (https). Auf GitHub Pages ist das gegeben.
+
+**Grenzen:**
+- Das iPad hat eine feste, zufällige Kennung im Browser. Wird dort der Website-Speicher gelöscht oder ein anderer Browser benutzt, ist es ein neues Gerät, und der Name muss neu eingetragen werden. Wechselt ein Kind das iPad, hängst du den Namen um. Den Gerätenamen eines iPads kann eine Webseite nicht auslesen.
+- Läuft die Spielleitung nur auf dem Tafel-Rechner, darf der nicht einschlafen.
 
 ## Staffel: Strafpause bei Fehltipps
 
@@ -122,6 +143,7 @@ Links und Parameter:
 | `?tafel=1` | Tafel. Der Raumcode wird auf diesem Gerät gemerkt. |
 | `?tafel=1&r=CODE` | Tafel mit eigenem Raumcode |
 | `?r=CODE` | Spieler im Raum `CODE` |
+| `?lehrer=1&r=CODE` | Lehrer-Ansicht (braucht den Schlüssel aus dem Lehrer-QR) |
 | `&b=1` | zuerst den zweiten MQTT-Server versuchen |
 | `&id=abc123` | feste Gerätekennung (zum Testen mit mehreren Tabs) |
 
@@ -131,6 +153,7 @@ Links und Parameter:
 - `main.js`: Einstieg (Tafel, Spieler oder Startseite)
 - `board.js`: Tafel, Spielleitung und Lichtanimation
 - `player.js`: Spieler-Ansicht mit den drei Eingabearten
+- `teacher.js`: Lehrer-Ansicht (Fernbedienung, verschlüsselt)
 - `net.js`: MQTT-Verbindung mit Ersatzserver
 - `shared.js`: Farben, Formen, Töne
 - `lib/`: MQTT.js 5.10.1 und qrcode-generator 1.4.4 (beide MIT, siehe `lib/README.md`)

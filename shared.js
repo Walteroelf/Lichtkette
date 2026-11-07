@@ -79,6 +79,32 @@ window.LK = window.LK || {};
 
   LK.validRoom = (s) => /^[a-z0-9-]{4,24}$/.test(s || '');
 
+  // ---- Verschlüsselung zwischen Tafel und Lehrer-Gerät (AES-GCM) ----
+  // Der geheime Schlüssel steht nur im Lehrer-Link (nach dem #) und wird nie gesendet.
+  // AES-GCM verschlüsselt und prüft zugleich, dass die Nachricht nicht verändert wurde.
+  const b64 = (bytes) => { let s = ''; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); };
+  const unb64 = (str) => Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+  LK.tcrypto = {
+    available: !!(window.crypto && window.crypto.subtle),
+    async derive(secret) {
+      const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`lichtkette-v1|${secret}`));
+      return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    },
+    async seal(key, obj) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+      return { iv: b64(iv), ct: b64(new Uint8Array(ct)) };
+    },
+    // null, wenn der Schlüssel nicht passt oder die Nachricht verändert wurde
+    async open(key, box) {
+      try {
+        if (!box || typeof box.iv !== 'string' || typeof box.ct !== 'string') return null;
+        const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv) }, key, unb64(box.ct));
+        return JSON.parse(new TextDecoder().decode(plain));
+      } catch (e) { return null; }
+    },
+  };
+
   // Bildschirm anlassen
   let awakeWanted = false;
   let lock = null;

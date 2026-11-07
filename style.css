@@ -346,6 +346,41 @@ dialog {
 #blink p { margin: 0; font-size: clamp(18px, 3vmin, 28px); font-weight: 600; color: #eceeff; }
 @keyframes blinkBreath { 50% { transform: scale(1.08); opacity: 0.8; } }
 
+/* ---------- Lehrer-Ansicht ---------- */
+#scr-teacher { display: block; overflow-y: auto; -webkit-overflow-scrolling: touch; text-align: left; padding: 14px 14px 40px; align-items: stretch; justify-content: flex-start; }
+.t-wrap { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.t-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.t-head h1 { font-size: 26px; margin: 0; }
+.t-conn { color: var(--muted); font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+.t-summary { color: var(--muted); font-size: 15px; }
+.t-bar { display: flex; gap: 10px; flex-wrap: wrap; position: sticky; top: 0; z-index: 3; padding: 8px 0; background: linear-gradient(var(--bg) 75%, transparent); }
+.t-big { flex: 1 1 140px; padding: 16px 12px; font-size: 18px; font-weight: 600; }
+.btn.primary { border-color: rgba(34, 211, 238, 0.7); background: rgba(34, 211, 238, 0.16); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.t-card { background: rgba(255, 255, 255, 0.04); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px; }
+.t-card h2 { margin: 0 0 10px; font-size: 18px; }
+.t-count { color: var(--muted); font-weight: 400; font-size: 15px; }
+.t-row { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.t-foot { margin: 0; }
+#tDevices { display: flex; flex-direction: column; gap: 12px; }
+.t-dev { border: 1.5px solid var(--line); border-radius: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); }
+.t-dev.holds { border-color: rgba(34, 211, 238, 0.6); box-shadow: 0 0 22px rgba(34, 211, 238, 0.12); }
+.t-dev-head { display: flex; align-items: center; gap: 10px; }
+.t-shape { width: 32px; height: 32px; flex: none; }
+.t-shape svg { width: 100%; height: 100%; fill: currentColor; stroke: currentColor; }
+.t-name { font-size: 17px; padding: 9px 12px; }
+.t-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+.t-chip.on { color: var(--accent); border-color: rgba(34, 211, 238, 0.6); }
+.t-chip.off { color: #fb7185; border-color: rgba(251, 113, 133, 0.5); }
+.t-dev-actions { display: flex; gap: 8px; margin: 10px 0 4px; }
+.t-dev-actions .btn { padding: 8px 12px; font-size: 14px; }
+.t-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.t-opts label { font-size: 13px; }
+.t-opts .seg button { padding: 8px 10px; font-size: 14px; }
+
+#tQr { background: #fff; border-radius: 12px; padding: 6px; width: min(70vmin, 320px); margin: 0 auto 12px; }
+#tQr svg { display: block; width: 100%; height: auto; }
+.warn { color: #fb7185; font-weight: 600; font-size: 14px; margin: 0 0 12px; line-height: 1.4; }
 .devshape { display: inline-block; width: 1.1em; height: 1.1em; vertical-align: -0.15em; margin-right: 6px; }
 .devshape svg { width: 100%; height: 100%; fill: currentColor; stroke: currentColor; }
 #cv { cursor: pointer; }

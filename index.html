@@ -28,6 +28,63 @@
   <p class="foot copyright-line">© 2026 Walteroelf · Work in Progress · <a href="https://github.com/Walteroelf/Lichtkette/blob/main/LICENSE.md" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a></p>
 </section>
 
+<!-- Lehrer: Spielleitung (Fernbedienung für die Tafel, nur mit Schlüssel aus dem Lehrer-QR) -->
+<section id="scr-teacher" class="scr" hidden>
+  <div class="t-wrap">
+    <header class="t-head">
+      <h1>Spielleitung</h1>
+      <span class="t-conn"><span id="tConn" class="dot bad"></span> <span id="tStatus">Verbinde …</span></span>
+    </header>
+
+    <div id="tSummary" class="t-summary"></div>
+
+    <div class="t-bar">
+      <button id="tPause" class="btn t-big" disabled>⏸ Pause</button>
+      <button id="tGo" class="btn t-big primary" hidden>Los ▶</button>
+      <button id="tRestart" class="btn t-big ghost">Neue Runde</button>
+    </div>
+
+    <section class="t-card">
+      <h2>Spielart</h2>
+      <div class="gmgrid">
+        <button class="gm" data-tgm="klassik">Lichtkette</button>
+        <button class="gm" data-tgm="rhythmus">Rhythmus</button>
+        <button class="gm" data-tgm="staffel">Staffel</button>
+        <button class="gm" data-tgm="doppel">Doppelte Lichter</button>
+        <button class="gm" data-tgm="schatz">Schatz-Licht</button>
+      </div>
+      <div data-tfor="klassik" class="t-row">
+        <label>Modus</label>
+        <div class="seg wide"><button data-ttm="0">Ruhig</button><button data-ttm="1">Zeitspiel</button></div>
+      </div>
+      <div data-tfor="doppel" class="t-row">
+        <label>Lichter gleichzeitig</label>
+        <div class="seg wide"><button data-tnl="2">2</button><button data-tnl="3">3</button></div>
+      </div>
+      <div data-tfor="rhythmus" class="t-row">
+        <label>Tempo</label>
+        <div class="seg wide"><button data-tbpm="70">langsam</button><button data-tbpm="90">mittel</button><button data-tbpm="110">schnell</button></div>
+      </div>
+      <div data-tfor="staffel" class="t-row">
+        <label>Strafpause bei Fehltipp (nur Geräte mit „mit Strafe“)</label>
+        <div class="seg wide"><button data-tpen="0">aus</button><button data-tpen="2">2 s</button><button data-tpen="4">4 s</button></div>
+      </div>
+      <div class="t-row">
+        <label id="tGnLabel">Weitergaben pro Runde</label>
+        <div class="seg wide"><button data-tgn="0">Auto</button><button data-tgn="10">10</button><button data-tgn="15">15</button><button data-tgn="20">20</button></div>
+      </div>
+    </section>
+
+    <section class="t-card">
+      <h2>Geräte <span id="tCount" class="t-count"></span></h2>
+      <div id="tDevices"></div>
+      <p id="tNone" class="info">Noch keine Geräte verbunden.</p>
+    </section>
+
+    <p class="info t-foot">Namen bleiben nur auf diesem Gerät. Befehle und Geräteinfos gehen verschlüsselt an die Tafel. Die Tafel zeigt keine Namen.</p>
+  </div>
+</section>
+
 <!-- Spieler: Eingabeart wählen -->
 <section id="scr-mode" class="scr" hidden>
   <h1>Wie spielst du?</h1>
@@ -108,14 +165,21 @@
     <button id="startBtn" class="big-btn">Tafel starten ▶<small>Ton und Bildschirm bleiben an</small></button>
   </div>
 
+  <dialog id="tDlg">
+    <h2>Lehrer-QR</h2>
+    <p class="warn">Nur für die Lehrkraft! Schüler dürfen diesen Code nicht sehen oder scannen, sonst können sie das Spiel steuern.</p>
+    <div id="tQr"></div>
+    <p class="info">Das ist ein anderer Code als der Schüler-QR. Mit dem Lehrer-Gerät scannen und dann sofort auf „Verbergen“ tippen. Nach 90 Sekunden verschwindet er von allein.</p>
+    <div class="stack">
+      <button id="tNew" class="btn ghost">Neuen Schlüssel erzeugen (alte Lehrer-Geräte werden ungültig)</button>
+    </div>
+    <button id="tHide" class="btn close">Verbergen</button>
+  </dialog>
+
   <dialog id="devDlg">
     <h2 id="devTitle">Gerät</h2>
     <div class="stack tight">
-      <label for="devName">Name oder Kürzel (bleibt nur auf dieser Tafel, wird nie gesendet)</label>
-      <div class="row">
-        <input id="devName" maxlength="20" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="z. B. Ben">
-        <button id="devBlink" class="btn" type="button">Gerät aufblinken lassen</button>
-      </div>
+      <button id="devBlink" class="btn" type="button">Gerät aufblinken lassen</button>
     </div>
     <p class="info">Die folgenden Einstellungen gelten nur für dieses Gerät und gehen vor, was am Gerät eingestellt ist. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.</p>
     <div class="stack tight">
@@ -189,7 +253,7 @@
       <button id="copyBtn" class="btn">Spieler-Link kopieren</button>
       <button id="newRoomBtn" class="btn ghost">Neuen Raumcode erzeugen</button>
       <button id="sndBtn" class="btn ghost">Ton: an</button>
-      <button id="namesBtn" class="btn ghost">Namen anzeigen: an</button>
+      <button id="teacherQrBtn" class="btn ghost">Lehrer-QR anzeigen</button>
       <button id="fsBtn" class="btn ghost">Vollbild</button>
       <button id="restartBtn" class="btn ghost">Neue Runde starten</button>
     </div>
@@ -209,6 +273,7 @@
 <script src="net.js"></script>
 <script src="board.js"></script>
 <script src="player.js"></script>
+<script src="teacher.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

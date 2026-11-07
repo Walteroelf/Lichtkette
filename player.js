@@ -218,7 +218,7 @@
       const light = li >= 0 ? st.lights[li] : null;
       const iHold = !!(fresh && slot >= 0 && light && !st.finale && st.ph === 'play');
       const isFin = !!(fresh && st.finale && slot >= 0);
-      const paused = !!(iHold && light.z); // Staffel: das andere Team hat gerade Vorrang
+      const paused = !!(iHold && (light.z || st.paused)); // Staffel: das andere Team hat Vorrang. Oder die Lehrkraft hat pausiert.
       const myTeam = fresh && st.team ? st.team[ID] : undefined;
 
       // Farbe: in der Staffel die des Teams, bei Doppelten Lichtern die des Lichts, sonst die eigene
@@ -259,6 +259,7 @@
       else if (!fresh) msg = 'Warte auf die Tafel …';
       else if (slot < 0) msg = 'Verbinde …';
       else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? 'Dein Team gewinnt!' : 'Geschafft! Gut gespielt') : 'Geschafft!';
+      else if (st.paused) msg = 'Pause';
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
       else if (iHold) msg = (clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
@@ -288,7 +289,7 @@
     function confirm() {
       if (!holding || performance.now() < lockUntil || !st) return;
       const light = st.lights.find((l) => l.h === ID);
-      if (!light || light.z) return; // in der Staffel: Pause, das andere Team ist gerade dran
+      if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
       holding = false;
       lastConfirm = performance.now();
       const s = light.s;
@@ -335,7 +336,7 @@
     // ein Tipp im falschen Moment (kein Licht da) oder neben den Punkt bzw. Kreis
     scrPlay.addEventListener('pointerdown', (e) => {
       if (!active || !eMiss() || mode === 'taster' || !st) return;
-      if (st.gm !== 'staffel' || st.ph !== 'play' || st.finale || !st.pen) return;
+      if (st.gm !== 'staffel' || st.ph !== 'play' || st.finale || st.paused || !st.pen) return;
       if (e.target.closest('button')) return; // Treffer oder Bedienknopf
       const now = performance.now();
       if (holding && now < lockUntil) return;  // gerade erst Licht bekommen

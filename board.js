@@ -68,11 +68,13 @@
     let cfgAll = {};
     try { cfgAll = JSON.parse(LK.store.get('lk_cfg', '{}')) || {}; } catch (e) { cfgAll = {}; }
     const saveCfg = () => LK.store.set('lk_cfg', JSON.stringify(cfgAll));
-    // Spitznamen der Geräte: bleiben auf diesem Tafel-Gerät und werden nie gesendet
-    let names = {};
-    try { names = JSON.parse(LK.store.get('lk_names', '{}')) || {}; } catch (e) { names = {}; }
-    const saveNames = () => LK.store.set('lk_names', JSON.stringify(names));
-    let showNames = LK.store.get('lk_board_names', '1') === '1';
+    // Lehrer-Gerät: Der geheime Schlüssel liegt nur auf diesem Tafel-Gerät und im Lehrer-QR.
+    // Befehle des Lehrer-Geräts und die privaten Infos an das Lehrer-Gerät sind damit verschlüsselt.
+    let tSecret = LK.store.get('lk_tkey', '');
+    if (!/^[a-z0-9]{24}$/.test(tSecret)) { tSecret = LK.rid(24); LK.store.set('lk_tkey', tSecret); }
+    let tKeyP = LK.tcrypto.available ? LK.tcrypto.derive(tSecret) : null;
+    const seenCmds = [];
+    let lastPrivAt = 0;
     let soundOn = LK.store.get('lk_board_snd', '1') === '1';
     let since = Date.now(); // Zeitspiel: Beginn des gerade laufenden Zeitabschnitts
 
@@ -85,7 +87,7 @@
       stars: [], sc: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: readNum('lk_gn', GN_OPTIONS, 0), nl: readNum('lk_nl', NL_OPTIONS, 2), bpm: readNum('lk_bpm', BPM_OPTIONS, 90),
-      pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {},
+      pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Zeitspiel: ph = ready | count | play, acc = gezählte Zeit in ms, run = Uhr läuft,
       // ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit, n = Geräteanzahl für die Bestzeit
       ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, n: 0, cd: 0,
@@ -94,7 +96,7 @@
     // Bestzeit gilt nur für gleich viele Weitergaben UND gleich viele Geräte, sonst ist sie nicht vergleichbar
     const bestFor = (goal, n) => parseInt(LK.store.get(`lk_best_${goal}_${n}`, '0'), 10) || 0;
 
-    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'host', 'state']);
+    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'host', 'state', 'tcmd']);
 
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
@@ -197,7 +199,7 @@
       l.s = ++token;
       clearTimeout(autoTimers[li]);
       delete pendingPass[li];
-      if (next && !isTm() && st.gm !== 'staffel') {
+      if (next && !isTm() && st.gm !== 'staffel' && !st.paused) {
         const w = (peers[next] && peers[next].w) || 0;
         if (w > 0) {
           l.a = w * 1000;
@@ -250,7 +252,7 @@
     }
 
     function passLight(li) {
-      if (st.finale || st.ph !== 'play' || finishing) return;
+      if (st.finale || st.ph !== 'play' || finishing || st.paused) return;
       const l = st.lights[li];
       if (!l || !l.h || l.z) return;
       st.chain++;
@@ -298,7 +300,7 @@
     }
 
     function onBeat(ms) {
-      if (isHost !== true || st.gm !== 'rhythmus' || st.ph !== 'play' || st.finale) return;
+      if (isHost !== true || st.gm !== 'rhythmus' || st.ph !== 'play' || st.finale || st.paused) return;
       beatCount++;
       view.beatT = performance.now();
       if (soundOn && LK.audio.ready) {
@@ -324,6 +326,7 @@
       finishing = false;
       penUntil[0] = 0;
       penUntil[1] = 0;
+      st.paused = false;
       if (bump) st.round++;
       st.finale = false;
       st.chain = 0;
@@ -482,6 +485,126 @@
       publish();
     }
 
+    // ---- Pause ----
+    function rearmAuto(li) {
+      const l = st.lights[li];
+      if (!l || !l.h || isTm() || st.gm === 'staffel') return;
+      const w = (peers[l.h] && peers[l.h].w) || 0;
+      if (w <= 0) return;
+      l.a = w * 1000;
+      const holder = l.h;
+      clearTimeout(autoTimers[li]);
+      autoTimers[li] = setTimeout(() => {
+        if (isHost === true && st.lights[li] && st.lights[li].h === holder) reqPass(li);
+      }, l.a);
+    }
+
+    function pauseGame(on) {
+      if (isHost !== true) return;
+      if (on) {
+        if (st.ph !== 'play' || st.finale || finishing || st.paused) return;
+        rollClock();
+        st.paused = true;
+        st.run = false;
+        st.lights.forEach((l, i) => { clearTimeout(autoTimers[i]); l.a = 0; });
+        pendingPass = {};
+      } else {
+        if (!st.paused) return;
+        st.paused = false;
+        since = Date.now();
+        updateClockRun();
+        st.lights.forEach((l, i) => rearmAuto(i));
+      }
+      publish();
+    }
+
+    // ---- Lehrer-Gerät: private Infos (verschlüsselt) und Befehle (verschlüsselt, mit Schlüssel geprüft) ----
+    function resetDeviceCfg(id) {
+      if (cfgAll[id] === undefined) return;
+      delete cfgAll[id];
+      saveCfg();
+      if (peers[id]) { peers[id].nt = false; peers[id].pn = false; }
+      publish();
+    }
+
+    function privSnapshot() {
+      const now = Date.now();
+      return {
+        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, bpm: st.bpm, pen: st.pen,
+        ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
+        chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
+        devices: aliveIds().map((id) => ({
+          id,
+          slot: st.players[id],
+          team: st.team[id],
+          holds: st.lights.some((l) => l.h === id),
+          age: peers[id] ? now - peers[id].last : null,
+          m: peers[id] ? peers[id].m : '',
+          cfg: cfgAll[id] || {},
+        })),
+      };
+    }
+
+    async function sendPriv() {
+      if (isHost !== true || !tKeyP) return;
+      try {
+        const box = await LK.tcrypto.seal(await tKeyP, privSnapshot());
+        net.send('tpriv', box);
+        lastPrivAt = Date.now();
+      } catch (e) { /* kein Lehrer-Gerät oder keine Verschlüsselung verfügbar */ }
+    }
+
+    const CFG_RULES = {
+      rnd: (v) => v === 0 || v === 1,
+      pn: (v) => v === 0 || v === 1,
+      nt: (v) => v === 0 || v === 1,
+      sz: (v) => v === 0.75 || v === 1 || v === 1.4,
+      w: (v) => LK.WAIT_OPTIONS.includes(v),
+      tt: (v) => v === 'a' || v === 'b' || v === 'x',
+    };
+
+    function execCmd(cmd) {
+      switch (cmd.c) {
+        case 'settings': {
+          const p = cmd.patch || {};
+          const patch = {};
+          if (GAMES.includes(p.gm)) patch.gm = p.gm;
+          if (p.tm === 0 || p.tm === 1) patch.tm = p.tm;
+          if (GN_OPTIONS.includes(p.gn)) patch.gn = p.gn;
+          if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
+          if (BPM_OPTIONS.includes(p.bpm)) patch.bpm = p.bpm;
+          if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
+          if (Object.keys(patch).length) applySettings(patch);
+          break;
+        }
+        case 'go': startCountdown(); break;
+        case 'restart': resetRound(true); publish(); break;
+        case 'pause': pauseGame(!!cmd.on); break;
+        case 'cfg':
+          if (typeof cmd.id === 'string' && CFG_RULES[cmd.key] && (cmd.value === null || CFG_RULES[cmd.key](cmd.value))) {
+            setDeviceCfg(cmd.id, cmd.key, cmd.value);
+          }
+          break;
+        case 'cfgreset': if (typeof cmd.id === 'string') resetDeviceCfg(cmd.id); break;
+        case 'blink': if (typeof cmd.id === 'string' && st.players[cmd.id] !== undefined) net.send('ping', { id: cmd.id }); break;
+        default: break;
+      }
+      sendPriv();
+    }
+
+    net.on('tcmd', async (m) => {
+      if (isHost !== true || !tKeyP) return;
+      try {
+        const cmd = await LK.tcrypto.open(await tKeyP, m); // null = falscher Schlüssel oder verändert
+        if (!cmd || typeof cmd.c !== 'string' || typeof cmd.cid !== 'string') return;
+        if (typeof cmd.ts !== 'number' || Math.abs(Date.now() - cmd.ts) > 10 * 60 * 1000) return;
+        if (seenCmds.includes(cmd.cid)) return; // Wiederholung eines alten Befehls
+        seenCmds.push(cmd.cid);
+        if (seenCmds.length > 80) seenCmds.shift();
+        execCmd(cmd);
+      } catch (e) { console.error('Lichtkette: Befehl', e); }
+    });
+
     function publish() {
       rollClock();
       calcFrozen();
@@ -495,6 +618,7 @@
       st.ts = Date.now();
       net.send('state', st);
       applyState(st);
+      sendPriv();
     }
 
     function becomeHost() {
@@ -509,6 +633,7 @@
       net.send('host', { id: boardId });
       setInterval(() => { if (isHost === true) net.send('host', { id: boardId }); }, 2000);
       setInterval(tick, 1000);
+      setInterval(sendPriv, 3000); // das Lehrer-Gerät bekommt auch ohne Spielzug regelmäßig den Stand
       setInterval(() => { if (isHost === true) publish(); }, 4000); // geht eine Nachricht verloren, holt das jedes Gerät nach
       setViewerBanner(false);
     }
@@ -537,7 +662,7 @@
     });
 
     net.on('act', (m) => {
-      if (isHost !== true || st.finale || st.ph !== 'play' || finishing) return;
+      if (isHost !== true || st.finale || st.ph !== 'play' || finishing || st.paused) return;
       const li = st.lights.findIndex((l) => l.h === m.id);
       if (li < 0 || m.epoch !== st.epoch || m.s !== st.lights[li].s) return;
       reqPass(li);
@@ -589,7 +714,7 @@
       gm: 'klassik', lights: [], vis: [], autoSince: [], round: -1, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
       ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1,
-      stars: [], sc: 0, starFx: {}, beatT: 0, team: {},
+      stars: [], sc: 0, starFx: {}, beatT: 0, team: {}, paused: false,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -717,6 +842,7 @@
       view.n = s.n || 0;
       view.cd = s.cd || 0;
       view.goalN = s.goal;
+      view.paused = !!s.paused;
       view.finDur = (s.tm && s.gm === 'klassik') || s.gm === 'staffel' ? 8000 : FINALE_MS;
       refreshUi();
     }
@@ -983,19 +1109,6 @@
           ctx.fillText('Strafpause', n.x, n.y + R * 2.7);
         }
       });
-      // Spitznamen unter den Knoten
-      if (showNames) {
-        ctx.font = `500 ${Math.round(R * 0.58)}px ${SANS}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        Object.keys(nodes).forEach((id) => {
-          const n = nodes[id];
-          if (!names[id] || n.dying) return;
-          ctx.fillStyle = 'rgba(225,230,255,0.88)';
-          ctx.fillText(names[id], n.x, n.y + R * 1.6);
-        });
-        ctx.textBaseline = 'middle';
-      }
       // Nummer des Lichts (Doppelte Lichter)
       if (view.gm === 'doppel') {
         ctx.fillStyle = 'rgba(6,7,13,0.85)';
@@ -1006,6 +1119,18 @@
       }
 
       drawHud(now, finT, fin);
+
+      // Pause: Bildschirm abdunkeln, ein ruhiges Wort in der Mitte
+      if (view.paused) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(6,7,13,0.62)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(240,242,255,0.95)';
+        ctx.font = `700 ${Math.round(Math.min(W, H) * 0.09)}px ${SANS}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Pause', W / 2, H / 2);
+      }
     }
 
     // Mitte und Ränder: Fortschritt, Uhr, Countdown, Ergebnis
@@ -1166,8 +1291,8 @@
     $('gear').addEventListener('click', () => {
       $('roomInput').value = room;
       $('sndBtn').textContent = soundOn ? 'Ton: an' : 'Ton: aus';
-      $('namesBtn').textContent = showNames ? 'Namen anzeigen: an' : 'Namen anzeigen: aus';
       $('restartBtn').hidden = isHost !== true;
+      $('teacherQrBtn').hidden = isHost !== true;
       $('modeBox').hidden = isHost !== true;
       markSettings();
       $('dlg').showModal();
@@ -1180,11 +1305,36 @@
       if (soundOn) LK.audio.init();
       $('sndBtn').textContent = soundOn ? 'Ton: an' : 'Ton: aus';
     });
-    $('namesBtn').addEventListener('click', () => {
-      showNames = !showNames;
-      LK.store.set('lk_board_names', showNames ? '1' : '0');
-      $('namesBtn').textContent = showNames ? 'Namen anzeigen: an' : 'Namen anzeigen: aus';
+    // Lehrer-QR: ein eigener Code, nur für die Lehrkraft (der Schlüssel steht hinter dem # und geht nie an einen Server)
+    let tHideTimer = null;
+    const teacherLink = () => `${location.href.split('?')[0].split('#')[0]}?lehrer=1&r=${room}#k=${tSecret}`;
+    function buildTeacherQr() {
+      const qr = qrcode(0, 'M');
+      qr.addData(teacherLink());
+      qr.make();
+      $('tQr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    }
+    $('teacherQrBtn').addEventListener('click', () => {
+      if (!LK.tcrypto.available) {
+        window.alert('Die Verschlüsselung steht in diesem Browser nicht zur Verfügung. Die Seite muss über https geöffnet sein.');
+        return;
+      }
+      $('dlg').close();
+      buildTeacherQr();
+      $('tDlg').showModal();
+      clearTimeout(tHideTimer);
+      tHideTimer = setTimeout(() => $('tDlg').close(), 90000);
     });
+    $('tHide').addEventListener('click', () => $('tDlg').close());
+    $('tDlg').addEventListener('close', () => { $('tQr').innerHTML = ''; clearTimeout(tHideTimer); });
+    $('tNew').addEventListener('click', () => {
+      tSecret = LK.rid(24);
+      LK.store.set('lk_tkey', tSecret);
+      tKeyP = LK.tcrypto.derive(tSecret);
+      seenCmds.length = 0;
+      buildTeacherQr();
+    });
+
     $('fsBtn').addEventListener('click', () => {
       if (document.fullscreenElement) document.exitFullscreen();
       else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
@@ -1219,27 +1369,13 @@
         seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
       });
     }
-    function devHeading() {
-      const n = nodes[devId];
-      if (!n) return;
-      const title = $('devTitle');
-      title.innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> `;
-      title.appendChild(document.createTextNode(names[devId] || 'Gerät')); // Name als Text, nie als HTML
-    }
     function openDev(id) {
       devId = id;
-      devHeading();
-      $('devName').value = names[id] || '';
+      const n = nodes[id];
+      $('devTitle').innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> Gerät`;
       markDev();
       $('devDlg').showModal();
     }
-    $('devName').addEventListener('input', () => {
-      if (devId === null) return;
-      const v = $('devName').value.trim().slice(0, 20);
-      if (v) names[devId] = v; else delete names[devId];
-      saveNames();
-      devHeading();
-    });
     $('devBlink').addEventListener('click', () => {
       if (devId === null) return;
       net.send('ping', { id: devId });

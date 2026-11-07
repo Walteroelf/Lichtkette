@@ -23,6 +23,11 @@
     return;
   }
 
+  if (q.has('lehrer') && room) {
+    LK.startTeacher(room, startBroker);
+    return;
+  }
+
   if (room) {
     LK.startPlayer(room, startBroker, q.get('id'));
     return;
