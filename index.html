@@ -5,8 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#06070d">
+<meta name="build" content="20261110-1022">
+<script>
+// Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
+// version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
+(function () {
+  try {
+    var m = document.querySelector('meta[name="build"]');
+    var mine = m ? m.content : '';
+    fetch('version.json?_=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.build || j.build === mine) return;
+        var key = 'lk_reload_' + j.build;
+        if (sessionStorage.getItem(key)) return; // nur einmal pro Version, damit es nie in einer Schleife endet
+        sessionStorage.setItem(key, '1');
+        var u = new URL(location.href);
+        u.searchParams.set('v', j.build);
+        location.replace(u.toString());
+      })
+      .catch(function () { /* offline: die vorhandene Version weiterbenutzen */ });
+  } catch (e) { /* ältere Browser */ }
+})();
+</script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261110-1022">
 </head>
 <body>
 
@@ -73,6 +96,16 @@
         <label id="tGnLabel">Weitergaben pro Runde</label>
         <div class="seg wide"><button data-tgn="0">Auto</button><button data-tgn="10">10</button><button data-tgn="15">15</button><button data-tgn="20">20</button></div>
       </div>
+    </section>
+
+    <section class="t-card">
+      <h2>Diagnose</h2>
+      <ul id="tDiag" class="t-diag"></ul>
+      <div class="t-dev-actions">
+        <button id="tEcho" class="btn ghost" type="button">Verbindung testen</button>
+        <button id="tSound" class="btn ghost" type="button">Ton der Tafel an/aus</button>
+      </div>
+      <p id="tEchoRes" class="info"></p>
     </section>
 
     <section class="t-card">
@@ -157,6 +190,7 @@
     <span id="count">0 Geräte</span>
     <span id="viewerTag" hidden>Mitschau</span>
   </div>
+  <div id="netWarn" role="alert" hidden>Verbindung zum Server gestört. Die Geräte können gerade nicht mitspielen. Es wird automatisch neu versucht.</div>
   <button id="gear" aria-label="Einstellungen">⚙</button>
   <button id="goBtn" class="big-btn" hidden>Los ▶</button>
 
@@ -267,13 +301,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js"></script>
-<script src="lib/qrcode.js"></script>
-<script src="shared.js"></script>
-<script src="net.js"></script>
-<script src="board.js"></script>
-<script src="player.js"></script>
-<script src="teacher.js"></script>
-<script src="main.js"></script>
+<script src="lib/mqtt.min.js?v=20261110-1022"></script>
+<script src="lib/qrcode.js?v=20261110-1022"></script>
+<script src="shared.js?v=20261110-1022"></script>
+<script src="net.js?v=20261110-1022"></script>
+<script src="board.js?v=20261110-1022"></script>
+<script src="player.js?v=20261110-1022"></script>
+<script src="teacher.js?v=20261110-1022"></script>
+<script src="main.js?v=20261110-1022"></script>
 </body>
 </html>

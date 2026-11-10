@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Lichtkette Kurzanleitung</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1b1e2e; background: #f4f5fa; margin: 0; padding: 24px 16px; }
+  main { max-width: 860px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 28px 32px; box-shadow: 0 2px 18px rgba(20, 24, 60, 0.1); }
+  h1 { font-size: 26px; margin: 0 0 2px; }
+  .sub { color: #5a607c; margin: 0 0 18px; }
+  h2 { font-size: 17px; margin: 22px 0 8px; padding-top: 4px; border-top: 2px solid #e5e8f4; }
+  ol, ul { margin: 6px 0 6px 20px; padding: 0; }
+  li { margin: 3px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid #e5e8f4; }
+  th { background: #f0f2fa; font-weight: 600; }
+  code { background: #eef0fa; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .note { background: #fff7e0; border: 1px solid #f2dc95; border-radius: 10px; padding: 8px 12px; margin: 10px 0; font-size: 14px; }
+  .btn { display: inline-block; margin-top: 14px; padding: 8px 14px; border: 1.5px solid #22a6c4; border-radius: 10px; background: #fff; color: #0e6378; font: inherit; cursor: pointer; }
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    body { background: #fff; padding: 0; font-size: 11.5px; line-height: 1.35; }
+    main { box-shadow: none; padding: 0; max-width: none; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 13.5px; margin-top: 12px; }
+    table { font-size: 11px; }
+    .btn { display: none; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lichtkette: Kurzanleitung für die Lehrkraft</h1>
+  <p class="sub">Gemeinsames Licht-Spiel für iPad, Taster und Augensteuerung · <a href="https://walteroelf.github.io/Lichtkette/">walteroelf.github.io/Lichtkette</a></p>
+
+  <h2>1. Vorbereitung (10 Minuten vorher)</h2>
+  <ul>
+    <li><b>Tafel-Rechner:</b> Energiesparen und Bildschirmschoner aus, Ton an. Öffne <code>…/Lichtkette/?tafel=1</code>, tippe auf <b>„Tafel starten“</b> (schaltet Ton und Bildschirmsperre frei), dann ⚙ → <b>Vollbild</b>.</li>
+    <li><b>iPads:</b> Einstellungen → Anzeige &amp; Helligkeit → Automatische Sperre → <b>Nie</b>. Mit <b>Geführtem Zugriff</b> (Einstellungen → Bedienungshilfen) bleibt das Kind in der App: Seitentaste oder Home-Taste dreimal drücken.</li>
+    <li><b>GridPad:</b> Spieler-Link per Mail schicken (Tafel ⚙ → <b>Spieler-Link kopieren</b>), als Lesezeichen speichern, Eingabeart <b>Blick / Maus</b>.</li>
+    <li><b>Lehrer-Gerät (einmalig):</b> Tafel ⚙ → <b>Lehrer-QR anzeigen</b>, mit deinem iPad scannen, auf der Tafel <b>Verbergen</b> tippen. Achte darauf, dass kein Schüler den Code scannt.</li>
+  </ul>
+
+  <h2>2. Ablauf der Stunde (Vorschlag)</h2>
+  <ol>
+    <li><b>Verbinden (5 Min.):</b> Kinder scannen den QR-Code der Tafel und wählen ihre <b>Eingabeart</b>: Tippen, Taster oder Blick/Maus. Das Gerät meldet sich erst nach dieser Wahl.</li>
+    <li><b>Zuordnen (3 Min.):</b> In der Lehrer-Ansicht bei jedem Gerät <b>Aufblinken</b> drücken und den <b>Namen</b> eintragen. Die Namen bleiben nur auf deinem Gerät.</li>
+    <li><b>Erste Runde (10 Min.):</b> Spielart <b>Lichtkette</b>, Modus <b>Ruhig</b>, Weitergaben <b>Auto</b>. Ohne Zeitdruck, ohne Strafe. Das ist die sichere Einstiegsrunde.</li>
+    <li><b>Mehr (20 Min.):</b> <b>Rhythmus</b> zuerst (Tempo mittel), dann <b>Schatz-Licht</b> oder <b>Doppelte Lichter</b>. <b>Staffel</b> und <b>Zeitspiel</b> erst, wenn alles stabil läuft.</li>
+    <li><b>Abschluss:</b> Fragen an die Klasse (siehe Ende der Seite).</li>
+  </ol>
+
+  <h2>3. Spielarten auf einen Blick</h2>
+  <table>
+    <tr><th>Spielart</th><th>Kurz</th><th>Empfehlung für den Start</th></tr>
+    <tr><td>Lichtkette</td><td>Ein Licht wandert zufällig weiter</td><td>Ruhig, Weitergaben „Auto“. Zeitspiel erst später, dort gilt die Bestzeit nur für gleich viele Geräte.</td></tr>
+    <tr><td>Rhythmus</td><td>Weitergaben im Takt, dazu wächst ein Beat</td><td>Tempo „mittel“, 15 Weitergaben. Wer länger braucht, hält das Licht einfach.</td></tr>
+    <tr><td>Schatz-Licht</td><td>Das Licht sammelt Sterne bei einzelnen Geräten</td><td>10 Sterne. Ruhig, gut für gemischte Gruppen.</td></tr>
+    <tr><td>Doppelte Lichter</td><td>2 oder 3 Lichter gleichzeitig</td><td>Ab 4 Geräten, erst mit 2 Lichtern.</td></tr>
+    <tr><td>Staffel</td><td>Zwei Teams, jedes mit eigenem Licht</td><td>Teams selbst mischen (pro Gerät „Team“), Strafpause <b>aus</b>. „Zeit zählt nicht“ gleichmäßig auf beide Teams verteilen.</td></tr>
+  </table>
+
+  <h2>4. Einstellungen pro Gerät (Lehrer-Ansicht → Geräte)</h2>
+  <table>
+    <tr><th>Kind</th><th>Empfehlung</th></tr>
+    <tr><td>Blicksteuerung</td><td>Eingabeart Blick/Maus, Tippfläche <b>fest</b> (Kreis in der Mitte), Größe <b>groß</b>, „Zeit zählt nicht“, Weiterwandern <b>nie</b>.</td></tr>
+    <tr><td>Taster</td><td>Eingabeart Taster, „Zeit zählt nicht“, Weiterwandern <b>nie</b> oder 30 s.</td></tr>
+    <tr><td>Motorisch eingeschränkt (Touch)</td><td>Tippfläche <b>fest</b> (ganzer Bildschirm), „Zeit zählt nicht“.</td></tr>
+    <tr><td>Fit (Touch)</td><td>Tippfläche <b>springender Punkt</b> (Standard), Größe normal oder klein, Fehltipps „mit Strafe“ nur in der Staffel und nur wenn es sicher klappt.</td></tr>
+  </table>
+  <div class="note"><b>Fehltipps mit Strafe</b> pausieren das Licht des ganzen Teams. Schalte das nur für Geräte ein, die sicher zielen können.</div>
+
+  <h2>5. Wenn etwas nicht klappt</h2>
+  <table>
+    <tr><th>Problem</th><th>Was tun</th></tr>
+    <tr><td>Gerät erscheint nicht auf der Tafel</td><td>Hat das Kind die Eingabeart gewählt? Link neu öffnen, WLAN prüfen. In der Lehrer-Ansicht den Abschnitt <b>Diagnose</b> ansehen.</td></tr>
+    <tr><td>Tafel zeigt „Verbindung zum Server gestört“</td><td>Schul-WLAN oder Internet prüfen. Sobald die Verbindung wieder da ist, läuft alles von allein weiter. Das Spiel nutzt zwei Server, bei einem Ausfall springt der andere ein.</td></tr>
+    <tr><td>Kein Ton</td><td>Auf der Tafel einmal „Tafel starten“ antippen, Lautstärke prüfen. In der Lehrer-Ansicht: Diagnose und „Ton der Tafel an/aus“.</td></tr>
+    <tr><td>Gerät reagiert nicht, Licht hängt</td><td><b>Aufblinken</b> prüfen, ob es das richtige Gerät ist. <b>Pause</b>, dann <b>Weiter</b>. Notfalls <b>Neue Runde</b>. Hilft das nicht: Seite auf dem Gerät neu laden.</td></tr>
+    <tr><td>Gerät zeigt „alte Version“</td><td>Auf dem Gerät den Link neu öffnen oder die Seite neu laden.</td></tr>
+    <tr><td>Lehrer-Ansicht: „Schlüssel passt nicht“</td><td>Auf der Tafel ⚙ → Lehrer-QR anzeigen und neu scannen. Hat ein Schüler den Code gesehen: <b>Neuen Schlüssel erzeugen</b>.</td></tr>
+    <tr><td>Tafel wurde neu geladen</td><td>Raumcode und Einstellungen bleiben, die Runde beginnt von vorn. Die Geräte verbinden sich nach wenigen Sekunden selbst wieder.</td></tr>
+    <tr><td>Kind überfordert</td><td><b>Pause</b>. Danach Zeitdruck herausnehmen: „Zeit zählt nicht“, Weiterwandern nach 10 oder 30 s, größerer Punkt.</td></tr>
+    <tr><td>Gar nichts geht</td><td>Eure Bingo-Apps als Ausweichplan. Danach Fehler und Uhrzeit notieren.</td></tr>
+  </table>
+
+  <h2>6. Datenschutz in drei Sätzen</h2>
+  <ul>
+    <li>Über den öffentlichen Server gehen nur <b>zufällige Gerätekennungen und Spielereignisse</b>, keine Namen und keine Schülerdaten.</li>
+    <li><b>Namen</b> stehen nur auf deinem Lehrer-Gerät. Die Tafel zeigt keine Namen.</li>
+    <li>Befehle und Geräteinfos zwischen deinem Gerät und der Tafel sind <b>verschlüsselt</b>.</li>
+  </ul>
+
+  <h2>7. Fragen an die Klasse (für die Weiterentwicklung)</h2>
+  <ul>
+    <li>Welche Spielart wollt ihr als Erstes noch einmal spielen?</li>
+    <li>Was war zu langsam, zu schnell, zu kindlich oder langweilig?</li>
+    <li>Welche Sounds und welches Aussehen (Looks) wünscht ihr euch?</li>
+    <li>Was hat nicht funktioniert oder war unklar? Wer hatte Probleme mit der Eingabe?</li>
+  </ul>
+  <p class="sub">Für dich zum Notieren: Verbindungsabbrüche (wer, wann), Blicksteuerung (zu früh oder zu spät ausgelöst), Ton und Beat, erste Fragen der Schüler.</p>
+
+  <button class="btn" onclick="window.print()">Drucken oder als PDF sichern</button>
+</main>
+</body>
+</html>

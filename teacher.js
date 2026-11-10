@@ -74,6 +74,86 @@
       cmd.ts = Date.now();
       cmd.cid = LK.rid(12);
       net.send('tcmd', await LK.tcrypto.seal(key, cmd));
+      return cmd.cid;
+    }
+
+    LK.keepAwake(); // das Lehrer-Gerät soll nicht einschlafen
+
+    // Verbindung testen: Befehl hin, Antwort im nächsten Stand zurück, Zeit dazwischen messen
+    let echo = null;
+    $('tEcho').addEventListener('click', async () => {
+      $('tEchoRes').textContent = 'Teste …';
+      const t0 = performance.now();
+      const cid = await send({ c: 'echo' });
+      echo = { cid, t0 };
+      setTimeout(() => { if (echo && echo.cid === cid) { $('tEchoRes').textContent = 'Keine Antwort von der Tafel. Prüfe die Verbindung.'; echo = null; } }, 8000);
+    });
+    $('tSound').addEventListener('click', () => { if (priv && priv.diag) send({ c: 'sound', on: !priv.diag.soundOn }); });
+
+    function renderDiag(p) {
+      const d = p.diag || {};
+      const lines = [];
+      const add = (cls, text, hint) => lines.push({ cls, text, hint });
+
+      // Verbindung dieses Geräts
+      const up = net.upCount;
+      const tot = net.total;
+      if (up === tot) add('ok', `Dieses Gerät: Verbindung zu beiden Servern (${net.brokerName})`);
+      else if (up > 0) add('warn', `Dieses Gerät: nur ${net.brokerName} erreichbar`, 'Das Spiel läuft, es fehlt nur die Reserve.');
+      else add('bad', 'Dieses Gerät: keine Verbindung zu den Servern', 'WLAN prüfen.');
+
+      // Verbindung der Tafel
+      const servers = d.servers || [];
+      const sup = servers.filter((s) => s.ok).length;
+      if (servers.length && sup === servers.length) add('ok', `Tafel: Verbindung zu beiden Servern (${servers.map((s) => s.name).join(' + ')})`);
+      else if (sup > 0) add('warn', `Tafel: nur ${servers.filter((s) => s.ok).map((s) => s.name).join(' + ')} erreichbar`, 'Das Spiel läuft, es fehlt nur die Reserve.');
+      else add('bad', 'Tafel: keine Verbindung zu den Servern');
+
+      // Ton
+      if (d.soundOn && d.soundReady) add('ok', 'Ton der Tafel: an und freigeschaltet');
+      else if (d.soundOn) add('warn', 'Ton der Tafel: noch nicht freigeschaltet', 'Auf der Tafel einmal „Tafel starten“ antippen.');
+      else add('warn', 'Ton der Tafel: aus', 'Mit „Ton der Tafel an/aus“ einschalten.');
+
+      // Bildschirm der Tafel
+      if (d.awake) add('ok', 'Tafel-Bildschirm bleibt an');
+      else add('warn', 'Tafel-Bildschirm: nicht sicher, dass er anbleibt', 'Am Tafel-Rechner Energiesparen und Bildschirmschoner ausschalten. „Tafel starten“ antippen aktiviert die Sperre.');
+
+      // Dieses Gerät
+      if (LK.isAwake()) add('ok', 'Dieses Gerät bleibt wach');
+      else add('warn', 'Dieses Gerät könnte einschlafen', 'Das stört das Spiel nicht, nur die Anzeige hier.');
+
+      // Geräte
+      const online = p.devices.filter((x) => !(x.age !== null && x.age > 8000));
+      const lost = p.devices.length - online.length;
+      if (!p.devices.length) add('warn', 'Noch keine Spielgeräte verbunden');
+      else if (lost) add('warn', `Spielgeräte: ${online.length} verbunden, ${lost} ohne Verbindung`, 'Im Abschnitt „Geräte“ sieht man, welche. Auf dem Gerät den Link neu öffnen.');
+      else add('ok', `Spielgeräte: ${online.length} verbunden`);
+
+      // Versionen
+      const stale = p.devices.filter((x) => x.bv && d.build && x.bv !== d.build).length;
+      if (d.build && d.build !== LK.BUILD) add('warn', 'Lehrer-Ansicht und Tafel haben verschiedene Versionen', 'Diese Seite neu laden.');
+      else if (stale) add('warn', `${stale} Spielgerät${stale === 1 ? '' : 'e'} mit alter Version`, 'Auf dem Gerät die Seite neu laden, am besten den Link neu öffnen.');
+      else add('ok', `Alle Seiten haben dieselbe Version (${d.build || '?'})`);
+
+      $('tDiag').innerHTML = '';
+      lines.forEach((l) => {
+        const li = document.createElement('li');
+        li.className = l.cls;
+        const span = document.createElement('span');
+        span.textContent = l.text;
+        if (l.hint) {
+          const small = document.createElement('small');
+          small.textContent = l.hint;
+          span.appendChild(small);
+        }
+        li.appendChild(span);
+        $('tDiag').appendChild(li);
+      });
+
+      if (echo && d.echo === echo.cid) {
+        $('tEchoRes').textContent = `Antwort der Tafel nach ${Math.round(performance.now() - echo.t0)} ms${performance.now() - echo.t0 > 1500 ? ' (langsam)' : ''}`;
+        echo = null;
+      }
     }
 
     setInterval(() => {
@@ -160,6 +240,7 @@
     }
 
     function render(p) {
+      renderDiag(p);
       // Zusammenfassung und Knöpfe
       const phase = p.finale ? 'Finale' : (p.paused ? 'pausiert' : (PHASE[p.ph] || ''));
       $('tSummary').textContent = `${TITLES[p.gm] || ''}${p.gm === 'klassik' && p.tm ? ' (Zeitspiel)' : ''} · Runde ${p.round} · ${phase} · ${p.n} ${p.n === 1 ? 'Gerät' : 'Geräte'}`;
@@ -194,8 +275,9 @@
           c.shape.innerHTML = LK.shapeSvg(d.slot);
         }
         const lost = d.age !== null && d.age > 8000;
-        c.chip.textContent = lost ? 'Verbindung weg' : (d.holds ? 'hat das Licht' : 'bereit');
-        c.chip.className = `t-chip ${lost ? 'off' : (d.holds ? 'on' : '')}`;
+        const old = !lost && d.bv && p.diag && p.diag.build && d.bv !== p.diag.build;
+        c.chip.textContent = lost ? 'Verbindung weg' : (old ? 'alte Version, neu laden' : (d.holds ? 'hat das Licht' : 'bereit'));
+        c.chip.className = `t-chip ${lost || old ? 'off' : (d.holds ? 'on' : '')}`;
         c.el.classList.toggle('holds', d.holds);
         OPTS.forEach((o) => {
           const cur = d.cfg[o.key] === undefined ? '' : String(d.cfg[o.key]);

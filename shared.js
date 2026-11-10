@@ -105,9 +105,13 @@ window.LK = window.LK || {};
     },
   };
 
+  // Version dieser Seite (steht im <meta name="build"> und wird von stamp.sh gesetzt). Hilft, alte Seiten zu erkennen.
+  LK.BUILD = (() => { const m = document.querySelector('meta[name="build"]'); return m ? m.content : '?'; })();
+
   // Bildschirm anlassen
   let awakeWanted = false;
   let lock = null;
+  LK.isAwake = () => !!lock;
   LK.keepAwake = async function () {
     awakeWanted = true;
     try {

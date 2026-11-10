@@ -75,6 +75,7 @@
     let tKeyP = LK.tcrypto.available ? LK.tcrypto.derive(tSecret) : null;
     const seenCmds = [];
     let lastPrivAt = 0;
+    let lastEcho = ''; // Kennung des letzten "Verbindung testen"-Befehls, die Antwort geht an das Lehrer-Gerät zurück
     let soundOn = LK.store.get('lk_board_snd', '1') === '1';
     let since = Date.now(); // Zeitspiel: Beginn des gerade laufenden Zeitabschnitts
 
@@ -540,8 +541,19 @@
           holds: st.lights.some((l) => l.h === id),
           age: peers[id] ? now - peers[id].last : null,
           m: peers[id] ? peers[id].m : '',
+          bv: peers[id] ? peers[id].bv : '',
           cfg: cfgAll[id] || {},
         })),
+        // Diagnose: Was die Tafel selbst über sich weiß
+        diag: {
+          build: LK.BUILD,
+          host: isHost === true,
+          servers: net.links.map((l) => ({ name: l.name, ok: l.ok })),
+          soundReady: LK.audio.ready,
+          soundOn,
+          awake: LK.isAwake(),
+          echo: lastEcho,
+        },
       };
     }
 
@@ -587,6 +599,8 @@
           break;
         case 'cfgreset': if (typeof cmd.id === 'string') resetDeviceCfg(cmd.id); break;
         case 'blink': if (typeof cmd.id === 'string' && st.players[cmd.id] !== undefined) net.send('ping', { id: cmd.id }); break;
+        case 'echo': lastEcho = cmd.cid; break; // Verbindung testen: Die Antwort steht im nächsten Stand
+        case 'sound': soundOn = !!cmd.on; LK.store.set('lk_board_snd', soundOn ? '1' : '0'); break;
         default: break;
       }
       sendPriv();
@@ -648,6 +662,7 @@
       peers[m.id] = {
         last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m, nt: m.nt === 1, pn: m.pn === 1,
         tt: m.tt === 'a' || m.tt === 'b' ? m.tt : '',
+        bv: typeof m.bv === 'string' ? m.bv.slice(0, 20) : '',
       };
       applyPeerCfg(m.id); // Vorgaben der Tafel gehen vor
       if (isHost !== true) return;
@@ -696,9 +711,18 @@
     };
     net.onstatus = setConn;
 
+    let warnTimer = null;
     function setConn(ok) {
-      $('connDot').className = ok ? 'dot ok' : 'dot bad';
-      $('connDot').title = ok ? `Verbunden (${net.brokerName})` : 'Keine Verbindung';
+      const partial = ok && net.upCount < net.total; // nur einer von zwei Servern erreichbar: läuft, aber ohne Reserve
+      $('connDot').className = ok ? (partial ? 'dot warn' : 'dot ok') : 'dot bad';
+      $('connDot').title = ok ? `Verbunden (${net.brokerName})${partial ? ', der andere Server ist gerade nicht erreichbar' : ''}` : 'Keine Verbindung';
+      // Erst nach ein paar Sekunden ohne Verbindung warnen, damit kurze Aussetzer niemanden aufschrecken
+      clearTimeout(warnTimer);
+      if (ok) {
+        $('netWarn').hidden = true;
+      } else {
+        warnTimer = setTimeout(() => { $('netWarn').hidden = false; }, 4000);
+      }
     }
 
     // ================= Darstellung =================

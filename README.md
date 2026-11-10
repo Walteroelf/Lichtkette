@@ -130,7 +130,10 @@ Die **Tafel** zeigt nur, was alle sehen dürfen: keine Namen und keine Gerätein
 ## Technik
 
 - Reine Web-App (HTML, CSS, JavaScript) ohne eigenen Server, gehostet über GitHub Pages.
-- Verbindung wie beim MatheBingo über einen öffentlichen MQTT-Server (HiveMQ, als Ersatz EMQX) per `wss://`. Das ist normaler Webverkehr und läuft im Schulnetz.
+- Verbindung wie beim MatheBingo über öffentliche MQTT-Server per `wss://`. Das ist normaler Webverkehr und läuft im Schulnetz. Es werden **beide Server gleichzeitig** benutzt (HiveMQ und EMQX): Jede Nachricht geht über beide raus, doppelte werden erkannt und verworfen. Fällt einer aus, läuft das Spiel über den anderen weiter, und der ausgefallene verbindet sich von selbst neu. Ein gelber Punkt auf der Tafel zeigt, dass nur einer erreichbar ist. Ist gar keiner erreichbar, erscheint nach 4 Sekunden „Verbindung zum Server gestört“.
+- **Cache-Schutz:** GitHub Pages liefert Dateien bis zu 10 Minuten zwischengespeichert. Jede Seite holt deshalb beim Öffnen `version.json` frisch. Ist sie neuer als die Seite, lädt sich die Seite einmal mit einer Versionsnummer in der Adresse neu (`&v=…`). Die Skripte haben Versionsnummern. **Vor jedem Hochladen `./stamp.sh` ausführen**, das setzt die neue Version. Vergisst man es, gilt der Schutz für diese Änderung nicht.
+- **Diagnose** in der Lehrer-Ansicht: Verbindung (dieses Gerät und Tafel, je zwei Server), Ton, Bildschirm, Spielgeräte, Versionen (Geräte mit alter Version werden markiert), dazu „Verbindung testen“ (misst die Antwortzeit der Tafel).
+- **Kurzanleitung** zum Drucken: `anleitung.html` (https://walteroelf.github.io/Lichtkette/anleitung.html)
 - Die **Tafel ist die Spielleitung**: Sie entscheidet, wer das Licht bekommt. Eine zweite Tafel im selben Raum schaut nur mit („Mitschau“).
 - Übertragen werden nur zufällige Gerätekennungen, Formen und Tipps. Keine Namen und keine Schülerdaten.
 - Geht eine Nachricht verloren, holt sie das nächste Lebenszeichen nach. Wer das Licht hat und tippt, dessen Tipp wird bis zu viermal wiederholt.
@@ -144,7 +147,7 @@ Links und Parameter:
 | `?tafel=1&r=CODE` | Tafel mit eigenem Raumcode |
 | `?r=CODE` | Spieler im Raum `CODE` |
 | `?lehrer=1&r=CODE` | Lehrer-Ansicht (braucht den Schlüssel aus dem Lehrer-QR) |
-| `&b=1` | zuerst den zweiten MQTT-Server versuchen |
+| `&b=1` / `&b=2` | zum Testen nur den ersten bzw. zweiten MQTT-Server benutzen (ohne `b` beide) |
 | `&id=abc123` | feste Gerätekennung (zum Testen mit mehreren Tabs) |
 
 ## Dateien
@@ -154,7 +157,9 @@ Links und Parameter:
 - `board.js`: Tafel, Spielleitung und Lichtanimation
 - `player.js`: Spieler-Ansicht mit den drei Eingabearten
 - `teacher.js`: Lehrer-Ansicht (Fernbedienung, verschlüsselt)
-- `net.js`: MQTT-Verbindung mit Ersatzserver
+- `net.js`: MQTT-Verbindung über zwei Server gleichzeitig
+- `stamp.sh`, `version.json`: Versionsnummer für den Cache-Schutz
+- `anleitung.html`: druckbare Kurzanleitung für die Lehrkraft
 - `shared.js`: Farben, Formen, Töne
 - `lib/`: MQTT.js 5.10.1 und qrcode-generator 1.4.4 (beide MIT, siehe `lib/README.md`)
 
