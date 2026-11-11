@@ -181,6 +181,8 @@
     setting('tbpm', 'bpm', (v) => parseInt(v, 10));
     setting('tpen', 'pen', (v) => parseInt(v, 10));
     setting('tnr', 'nr', (v) => parseInt(v, 10));
+    setting('tsp', 'sp', (v) => parseInt(v, 10));
+    setting('tsj', 'sj', (v) => parseInt(v, 10));
 
     // ---------- Anzeige ----------
     const cards = {};
@@ -260,6 +262,8 @@
       mark('tbpm', p.bpm);
       mark('tpen', p.pen);
       mark('tnr', p.nr);
+      mark('tsp', p.sp);
+      mark('tsj', p.sj);
       $('tGo').textContent = p.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
       document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = el.dataset.tfor !== p.gm; });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';

@@ -91,6 +91,9 @@
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
+      // Schatz-Licht: sp = Sterne pro Schatz (1, 2, 3, 5 oder 0 = steigend), sj = Stern springt nach so vielen Sekunden weiter (0 = bleibt)
+      sp: readNum('lk_sp', [0, 1, 2, 3, 5], 1),
+      sj: readNum('lk_sj', [0, 3, 4, 6], 0),
       // Zeitspiel: ph = ready | count | play, acc = gezählte Zeit in ms, run = Uhr läuft,
       // ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit, n = Geräteanzahl für die Bestzeit
       ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, n: 0, cd: 0,
@@ -99,7 +102,7 @@
     // Bestzeit gilt nur für gleich viele Weitergaben UND gleich viele Geräte, sonst ist sie nicht vergleichbar
     const bestFor = (goal, n) => parseInt(LK.store.get(`lk_best_${goal}_${n}`, '0'), 10) || 0;
 
-    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'host', 'state', 'tcmd']);
+    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'star', 'host', 'state', 'tcmd']);
 
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
@@ -200,6 +203,10 @@
       l.a = 0;
       l.z = false;
       l.s = ++token;
+      // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, steht fest, wie viele Sterne es einzusammeln hat
+      l.n = 0;
+      l.r = 0;
+      if (st.gm === 'schatz' && next && st.stars.includes(next)) { l.n = starsPerTreasure(); l.r = l.n; }
       clearTimeout(autoTimers[li]);
       delete pendingPass[li];
       if (next && !isTm() && st.gm !== 'staffel' && !st.paused) {
@@ -220,7 +227,7 @@
       if (st.ph !== 'play' || st.finale || finishing) return;
       const D = desiredLights();
       while (st.lights.length > D) { const i = st.lights.length - 1; clearTimeout(autoTimers[i]); st.lights.pop(); }
-      while (st.lights.length < D) st.lights.push({ h: null, p: null, k: st.lights.length, s: ++token, a: 0, z: false });
+      while (st.lights.length < D) st.lights.push({ h: null, p: null, k: st.lights.length, s: ++token, a: 0, z: false, n: 0, r: 0 });
       st.lights.forEach((l, i) => {
         if (l.h && st.players[l.h] === undefined) { l.p = l.h; l.h = null; }
         if (!l.h) { const n = pickFor(i); if (n) setLight(i, n); }
@@ -241,12 +248,30 @@
       }
     }
 
+    // Der Schatz bei diesem Gerät ist komplett eingesammelt: Er verschwindet, ein neuer liegt woanders
     function collectStar(id) {
       const i = st.stars.indexOf(id);
       if (i < 0) return;
       st.stars.splice(i, 1);
-      st.sc++;
       ensureStars();
+    }
+
+    // Wie viele Sterne hat ein Schatz gerade? Fest 1, 2, 3, 5, oder steigend: alle 4 eingesammelten Sterne einer mehr (höchstens 5)
+    function starsPerTreasure() {
+      if (st.sp > 0) return st.sp;
+      return Math.min(5, 1 + Math.floor(st.sc / 4));
+    }
+
+    // Ein Gerät meldet, wie viele Sterne es insgesamt angetippt hat. Jeder Stern zählt sofort zum Ziel.
+    function starsTaken(li, count) {
+      const l = st.lights[li];
+      if (!l || !l.h || !(l.r > 0)) return false;
+      const newR = Math.max(0, l.n - Math.min(Math.max(0, count), l.n));
+      if (newR >= l.r) return false;
+      st.sc += l.r - newR;
+      l.r = newR;
+      if (l.r === 0) collectStar(l.h);
+      return true;
     }
 
     // collect: Das Gerät meldet, dass es auch den Stern angetippt hat (Schatz-Licht). Ohne Meldung bleibt der Stern liegen.
@@ -261,8 +286,13 @@
       if (!l || !l.h || l.z) return;
       st.chain++;
       if (st.gm === 'staffel') st.tc[li]++;
-      // Schatz-Licht: Der Stern bei diesem Gerät wird eingesammelt, wenn das Gerät ihn angetippt hat
-      if (st.gm === 'schatz' && collect && st.stars.includes(l.h)) collectStar(l.h);
+      // Schatz-Licht, "ein Tipp reicht": Beim Weitergeben werden alle noch offenen Sterne dieses Geräts eingesammelt.
+      // Wer die Sterne einzeln antippt, hat sie schon vorher gemeldet. Läuft nur die Zeit ab, bleibt der Rest liegen.
+      if (st.gm === 'schatz' && collect && l.r > 0) {
+        st.sc += l.r;
+        l.r = 0;
+        collectStar(l.h);
+      }
       if (st.gm === 'staffel' ? st.tc[li] >= st.goal : (st.gm === 'schatz' ? st.sc >= st.goal : st.chain >= st.goal)) { startFinale(li); return; }
       setLight(li, pickFor(li));
       publish();
@@ -390,6 +420,8 @@
       LK.store.set('lk_bpm', String(st.bpm));
       LK.store.set('lk_pen', String(st.pen));
       LK.store.set('lk_nr', String(st.nr));
+      LK.store.set('lk_sp', String(st.sp));
+      LK.store.set('lk_sj', String(st.sj));
       resetRound(true);
       publish();
     }
@@ -409,7 +441,7 @@
         st.best = bestFor(st.goal, st.n);
       }
       pendingPass = {};
-      st.lights.forEach((l, i) => { clearTimeout(autoTimers[i]); l.p = l.h; l.h = null; l.a = 0; l.z = false; l.s = ++token; });
+      st.lights.forEach((l, i) => { clearTimeout(autoTimers[i]); l.p = l.h; l.h = null; l.a = 0; l.z = false; l.n = 0; l.r = 0; l.s = ++token; });
       st.seq++;
       st.run = false;
       publish();
@@ -532,7 +564,7 @@
     function privSnapshot() {
       const now = Date.now();
       return {
-        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, bpm: st.bpm, pen: st.pen, nr: st.nr,
+        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, bpm: st.bpm, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
         devices: aliveIds().map((id) => ({
@@ -589,6 +621,8 @@
           if (BPM_OPTIONS.includes(p.bpm)) patch.bpm = p.bpm;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
           if (p.nr === 0 || p.nr === 1) patch.nr = p.nr;
+          if ([0, 1, 2, 3, 5].includes(p.sp)) patch.sp = p.sp;
+          if ([0, 3, 4, 6].includes(p.sj)) patch.sj = p.sj;
           if (Object.keys(patch).length) applySettings(patch);
           break;
         }
@@ -683,11 +717,27 @@
       if (isHost !== true || st.finale || st.ph !== 'play' || finishing || st.paused) return;
       const li = st.lights.findIndex((l) => l.h === m.id);
       if (li < 0 || m.epoch !== st.epoch || m.s !== st.lights[li].s) return;
+      // Schatz-Licht: Sterne, die das Gerät angetippt hat, zählen auch dann, wenn eine einzelne Meldung verloren ging
+      if (st.gm === 'schatz' && typeof m.c === 'number' && m.c > 0) {
+        starsTaken(li, Math.floor(m.c));
+        if (st.sc >= st.goal) { startFinale(li); return; }
+      }
       reqPass(li, m.k === 1);
     });
 
     net.on('miss', (m) => {
       if (isHost === true && typeof m.id === 'string' && m.epoch === st.epoch) onMiss(m.id);
+    });
+
+    // Schatz-Licht: Ein Gerät meldet, wie viele Sterne es bei diesem Licht schon angetippt hat (Gesamtzahl, darum sind
+    // wiederholte oder verspätete Meldungen harmlos)
+    net.on('star', (m) => {
+      if (isHost !== true || st.finale || st.ph !== 'play' || finishing || st.paused || st.gm !== 'schatz') return;
+      const li = st.lights.findIndex((l) => l.h === m.id);
+      if (li < 0 || m.epoch !== st.epoch || m.s !== st.lights[li].s || typeof m.c !== 'number') return;
+      if (!starsTaken(li, Math.floor(m.c))) return;
+      if (st.sc >= st.goal) { startFinale(li); return; }
+      publish();
     });
 
     net.on('host', (m) => {
@@ -860,8 +910,11 @@
       view.stars = s.stars || [];
       if (s.sc > view.sc && !first) {
         // Stern eingesammelt: Funkeln bei dem Gerät, das ihn angetippt hat (das Licht war gerade dort)
+        // Jeder Stern zählt: Funkeln bei dem Gerät, das ihn angetippt hat. Wurde dabei das Licht weitergegeben, war es das vorherige.
         const l = view.lights[0];
-        const id = l ? (l.p || l.h) : null;
+        const pl0 = prevLights[0];
+        const passed = !!(pl0 && l && pl0.s !== l.s);
+        const id = l ? (passed ? l.p : l.h) : null;
         if (id && nodes[id]) starBurst(id);
       }
       view.sc = s.sc || 0;
@@ -1078,6 +1131,18 @@
           ctx.fillStyle = `rgba(253,224,71,${0.9 * fade})`;
           starPath(n.x + r * 1.5, n.y - r * 1.5 + bob, r * 0.6);
           ctx.fill();
+          // Liegen bei diesem Gerät mehrere Sterne, steht die Zahl der noch offenen dabei
+          const holder = view.lights.find((x) => x.h === id);
+          if (holder && holder.r > 1) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = `rgba(253,224,71,${fade})`;
+            ctx.font = `700 ${Math.round(r * 0.8)}px ${SANS}`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`×${holder.r}`, n.x + r * 2.2, n.y - r * 1.5 + bob);
+            ctx.restore();
+          }
         }
       });
 
@@ -1323,6 +1388,8 @@
       mark('bpm', st.bpm);
       mark('pen', st.pen);
       mark('nr', st.nr);
+      mark('sp', st.sp);
+      mark('sj', st.sj);
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== st.gm; });
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
@@ -1402,6 +1469,8 @@
     onSetting('bpm', 'bpm', (v) => parseInt(v, 10));
     onSetting('pen', 'pen', (v) => parseInt(v, 10));
     onSetting('nr', 'nr', (v) => parseInt(v, 10));
+    onSetting('sp', 'sp', (v) => parseInt(v, 10));
+    onSetting('sj', 'sj', (v) => parseInt(v, 10));
 
     // Gerät auf der Tafel antippen: Einstellungen nur für dieses Gerät
     let devId = null;

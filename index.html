@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261111-0938">
+<meta name="build" content="20261111-0948">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -29,7 +29,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261111-0938">
+<link rel="stylesheet" href="style.css?v=20261111-0948">
 </head>
 <body>
 
@@ -83,6 +83,12 @@
       <div data-tfor="doppel" class="t-row">
         <label>Lichter gleichzeitig</label>
         <div class="seg wide"><button data-tnl="2">2</button><button data-tnl="3">3</button></div>
+      </div>
+      <div data-tfor="schatz" class="t-row">
+        <label>Sterne pro Schatz (jeder Stern zählt, immer einer sichtbar, „steigend“: alle 4 Sterne einer mehr, höchstens 5)</label>
+        <div class="seg wide"><button data-tsp="1">1</button><button data-tsp="2">2</button><button data-tsp="3">3</button><button data-tsp="5">5</button><button data-tsp="0">steigend</button></div>
+        <label>Stern springt weiter nach (nur Geräte mit „Stern extra antippen“)</label>
+        <div class="seg wide"><button data-tsj="0">bleibt</button><button data-tsj="6">6 s</button><button data-tsj="4">4 s</button><button data-tsj="3">3 s</button></div>
       </div>
       <div data-tfor="rhythmus" class="t-row">
         <label>Tempo</label>
@@ -321,6 +327,12 @@
         <label>Lichter gleichzeitig</label>
         <div class="seg wide"><button data-nl="2">2</button><button data-nl="3">3</button></div>
       </div>
+      <div data-for="schatz" class="stack tight">
+        <label>Sterne pro Schatz (jeder Stern zählt, immer einer sichtbar)</label>
+        <div class="seg wide"><button data-sp="1">1</button><button data-sp="2">2</button><button data-sp="3">3</button><button data-sp="5">5</button><button data-sp="0">steigend</button></div>
+        <label>Stern springt weiter nach (nur Geräte mit „Stern extra antippen“)</label>
+        <div class="seg wide"><button data-sj="0">bleibt</button><button data-sj="6">6 s</button><button data-sj="4">4 s</button><button data-sj="3">3 s</button></div>
+      </div>
       <div data-for="rhythmus" class="stack tight">
         <label>Tempo</label>
         <div class="seg wide"><button data-bpm="70">langsam</button><button data-bpm="90">mittel</button><button data-bpm="110">schnell</button></div>
@@ -348,13 +360,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261111-0938"></script>
-<script src="lib/qrcode.js?v=20261111-0938"></script>
-<script src="shared.js?v=20261111-0938"></script>
-<script src="net.js?v=20261111-0938"></script>
-<script src="board.js?v=20261111-0938"></script>
-<script src="player.js?v=20261111-0938"></script>
-<script src="teacher.js?v=20261111-0938"></script>
-<script src="main.js?v=20261111-0938"></script>
+<script src="lib/mqtt.min.js?v=20261111-0948"></script>
+<script src="lib/qrcode.js?v=20261111-0948"></script>
+<script src="shared.js?v=20261111-0948"></script>
+<script src="net.js?v=20261111-0948"></script>
+<script src="board.js?v=20261111-0948"></script>
+<script src="player.js?v=20261111-0948"></script>
+<script src="teacher.js?v=20261111-0948"></script>
+<script src="main.js?v=20261111-0948"></script>
 </body>
 </html>

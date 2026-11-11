@@ -33,9 +33,14 @@
     let lastMiss = 0;
     let lastConfirm = 0;
     let missUntil = 0;
-    // Schatz-Licht: Auf einem Gerät mit Stern muss man das Licht UND den Stern antippen (Reihenfolge egal)
-    let lightTapped = false;
-    let starTapped = false;
+    // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, müssen erst alle Sterne angetippt werden (immer einer sichtbar,
+    // der nächste erscheint an anderer Stelle), zum Schluss gibt man das Licht weiter. Bei nur einem Stern darf das Licht auch zuerst kommen.
+    let starCount = 0;       // so viele Sterne wurden bei diesem Licht schon angetippt
+    let lightTapped = false; // nur bei einem einzelnen Stern: Licht wurde vor dem Stern getippt
+    let starTimer = null;    // lässt den Stern weiterspringen, wenn die Tafel das eingestellt hat
+    let lastStarPos = null;
+    let flashMsg = '';
+    let flashUntil = 0;
     let lastTapAt = 0;
     // '' = je nach Eingabeart (Tippen: antippen, Taster und Blick: automatisch), 'auto' oder 'tap'
     let starPref = ['auto', 'tap'].includes(LK.store.get('lk_sa', '')) ? LK.store.get('lk_sa', '') : '';
@@ -69,7 +74,12 @@
       if (starPref) return starPref === 'auto';
       return mode !== 'touch';
     };
-    const starTapNeeded = () => starHere() && !starAuto();
+    const myLight = () => (st ? st.lights.find((l) => l.h === ID) : null);
+    // Liegt bei diesem Gerät gerade ein Schatz, und aus wie vielen Sternen besteht er? (Die Tafel legt das beim Eintreffen des Lichts fest.)
+    const treasureHere = () => { const l = myLight(); return !!(l && st.gm === 'schatz' && l.n > 0); };
+    const starTotal = () => { const l = myLight(); return l && l.n > 0 ? l.n : 1; };
+    const starsDone = () => starCount >= starTotal();
+    const starTapNeeded = () => treasureHere() && !starAuto();
 
     const scrMode = $('scr-mode');
     const scrPlay = $('scr-play');
@@ -119,10 +129,15 @@
     };
     // Schatz-Licht: Was muss gerade noch passieren?
     const starMsg = () => {
-      if (mode === 'taster') return starTapped ? 'Jetzt noch einmal für das Licht' : 'Erst den Stern ★, dann das Licht: zweimal drücken';
-      if (lightTapped) return 'Tippe auch den Stern ★';
-      if (starTapped) return mode === 'blick' ? 'Schau auch auf das Licht' : 'Tippe auch das Licht';
-      return `${hintText()} und den Stern ★`;
+      const total = starTotal();
+      const nth = `Stern ${starCount + 1} von ${total}`;
+      if (!starsDone()) {
+        if (mode === 'taster') return total === 1 ? 'Erst den Stern ★, dann das Licht: zweimal drücken' : `Taster: ${nth} ★`;
+        if (total === 1) return lightTapped ? 'Tippe auch den Stern ★' : `${hintText()} und den Stern ★`;
+        return `${mode === 'blick' ? 'Schau auf' : 'Tippe'} ${nth} ★`;
+      }
+      if (mode === 'taster') return 'Jetzt noch einmal für das Licht';
+      return mode === 'blick' ? 'Jetzt auf den Kreis schauen' : 'Jetzt das Licht weitergeben';
     };
 
     document.querySelectorAll('.card').forEach((c) => c.addEventListener('click', () => {
@@ -365,7 +380,9 @@
       if (iHold && !holding) {
         holding = true;
         lightTapped = false;
-        starTapped = false;
+        starCount = 0;
+        clearTimeout(starTimer);
+        lastStarPos = null;
         $('star').dataset.placed = '';
         updateTapVisuals();
         lockUntil = performance.now() + MODES[mode].lock;
@@ -380,17 +397,18 @@
       } else if (!iHold && holding) {
         holding = false;
         lightTapped = false;
-        starTapped = false;
+        starCount = 0;
+        clearTimeout(starTimer);
         updateTapVisuals();
       }
       if (!iHold) $('hold').hidden = true;
 
-      // Schatz-Licht: Liegt bei diesem Gerät ein Stern, erscheint ein gelber Stern zum Antippen
-      const showStar = !!(iHold && holding && starTapNeeded());
+      // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, erscheint ein gelber Stern zum Antippen (immer nur einer)
+      const showStar = !!(iHold && holding && starTapNeeded() && !starsDone());
       $('star').hidden = !showStar;
-      if (showStar && !$('star').dataset.placed) placeStar();
-      // Der Stern ist verschwunden oder wird jetzt automatisch eingesammelt, das Licht war schon getippt: weitergeben
-      if (iHold && holding && lightTapped && !starTapNeeded() && light && !light.z && !st.paused) finishPass(light, starHere());
+      if (showStar && !$('star').dataset.placed) { placeStar(); armStarJump(); }
+      // Wird der Stern jetzt automatisch eingesammelt (Einstellung geändert) und das Licht war schon getippt: weitergeben
+      if (iHold && holding && lightTapped && treasureHere() && starAuto() && light && !light.z && !st.paused) finishPass(light, true);
 
       scrPlay.classList.toggle('on', iHold);
       scrPlay.classList.toggle('fin', isFin);
@@ -405,6 +423,7 @@
       else if (slot < 0) msg = 'Verbinde …';
       else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? 'Dein Team gewinnt!' : 'Geschafft! Gut gespielt') : 'Geschafft!';
       else if (st.paused) msg = 'Pause';
+      else if (performance.now() < flashUntil) msg = flashMsg;
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
       else if (iHold) msg = starTapNeeded() ? starMsg() : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText());
@@ -437,58 +456,106 @@
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
       if (starTapNeeded()) {
-        // Schatz-Licht: Licht und Stern müssen beide getippt werden, die Reihenfolge ist egal
+        // Schatz-Licht: erst alle Sterne, dann das Licht. Nur bei einem einzelnen Stern darf das Licht auch zuerst kommen.
         const now = performance.now();
         if (mode === 'taster') {
-          // Ein Knopf: erster Druck = Stern einsammeln, zweiter Druck = Licht weitergeben. Prellen und Dauerdruck zählen nicht doppelt.
+          // Ein Knopf: Die ersten Drücke sind die Sterne, der letzte gibt das Licht weiter. Prellen und Dauerdruck zählen nicht doppelt.
           if (now - lastTapAt < 300) return;
           lastTapAt = now;
-          if (!starTapped) {
-            starTapped = true;
-            if (sound && slot >= 0) LK.audio.note(slot, 0.3, 0.8, 0, 2);
-            if (navigator.vibrate) navigator.vibrate(15);
-            updateTapVisuals();
-            render();
-            return;
-          }
-          finishPass(light, true);
+          if (!starsDone()) { starStep(light); return; }
+          finishPass(light, false);
           return;
         }
-        lightTapped = true;
-        if (starTapped) finishPass(light, true);
-        else { updateTapVisuals(); render(); }
+        if (!starsDone()) {
+          if (starTotal() === 1) {
+            lightTapped = true;
+            updateTapVisuals();
+            render();
+          } else {
+            flashMsg = `Erst die Sterne ★ (${starCount + 1} von ${starTotal()})`;
+            flashUntil = performance.now() + 1300;
+            render();
+            setTimeout(render, 1350);
+          }
+          return;
+        }
+        finishPass(light, false);
         return;
       }
-      finishPass(light, starHere()); // kein Stern oder automatisch: einsammeln, wenn bei diesem Gerät einer liegt
+      // Kein Schatz bei diesem Gerät, oder "ein Tipp reicht": Beim Weitergeben werden alle Sterne dieses Geräts eingesammelt
+      finishPass(light, treasureHere());
     }
 
     // Gelben Stern getippt
     function tapStar() {
-      if (!holding || performance.now() < lockUntil || !st || !starTapNeeded()) return;
-      const light = st.lights.find((l) => l.h === ID);
+      if (!holding || performance.now() < lockUntil || !st || !starTapNeeded() || starsDone()) return;
+      const light = myLight();
       if (!light || light.z || st.paused) return;
-      starTapped = true;
+      starStep(light);
+    }
+
+    // Ein Stern ist eingesammelt: der Tafel melden, den nächsten Stern an anderer Stelle zeigen
+    function starStep(light) {
+      starCount++;
       if (sound && slot >= 0) LK.audio.note(slot, 0.3, 0.8, 0, 2);
       if (navigator.vibrate) navigator.vibrate(15);
-      if (lightTapped) finishPass(light, true);
-      else { updateTapVisuals(); render(); }
+      reportStars(light);
+      if (starTotal() === 1 && lightTapped) { finishPass(light, false); return; } // ein Stern, Licht war schon dran
+      if (!starsDone()) {
+        $('star').dataset.placed = '';
+        placeStar();
+        armStarJump();
+      } else {
+        clearTimeout(starTimer);
+        $('star').hidden = true;
+      }
+      updateTapVisuals();
+      render();
+    }
+
+    // Meldet der Tafel die Gesamtzahl der angetippten Sterne. Geht eine Meldung verloren, wird sie wiederholt.
+    function reportStars(light) {
+      const s = light.s;
+      const epoch = st.epoch;
+      net.send('star', { id: ID, s, epoch, c: starCount });
+      let tries = 0;
+      const again = () => {
+        const cur = st && st.lights.find((l) => l.h === ID && l.s === s);
+        if (!cur || cur.r <= cur.n - starCount || tries >= 3) return;
+        tries++;
+        net.send('star', { id: ID, s, epoch, c: starCount });
+        setTimeout(again, 1200);
+      };
+      setTimeout(again, 1200);
+    }
+
+    // Springt der Stern weiter (Einstellung der Tafel), wenn man zu lange braucht? Er wird nicht bestraft, er wandert nur.
+    function armStarJump() {
+      clearTimeout(starTimer);
+      const sj = st && st.sj ? st.sj : 0;
+      if (!sj) return;
+      starTimer = setTimeout(() => {
+        if (holding && starTapNeeded() && !starsDone()) { placeStar(); armStarJump(); }
+      }, sj * 1000);
     }
 
     function finishPass(light, collect) {
       holding = false;
       lightTapped = false;
-      starTapped = false;
+      clearTimeout(starTimer);
+      const done = starCount;
+      starCount = 0;
       lastConfirm = performance.now();
       const s = light.s;
       const epoch = st.epoch;
       const k = collect ? 1 : 0;
-      sendAct(s, epoch, k);
+      sendAct(s, epoch, k, done);
       // Ging die Nachricht verloren, wird sie wiederholt, bis die Tafel das Licht weitergegeben hat
       let tries = 0;
       const again = () => {
         if (!st || !st.lights.some((l) => l.h === ID && l.s === s) || tries >= 4) return;
         tries++;
-        sendAct(s, epoch, k);
+        sendAct(s, epoch, k, done);
         resendTimer = setTimeout(again, RESEND_MS);
       };
       clearTimeout(resendTimer);
@@ -501,14 +568,15 @@
       $('star').hidden = true;
       updateTapVisuals();
       scrPlay.classList.remove('on');
-      $('msg').textContent = collect ? 'Stern eingesammelt ★' : 'Weitergegeben ✓';
+      $('msg').textContent = (collect || done > 0) ? 'Stern eingesammelt ★' : 'Weitergegeben ✓';
     }
 
-    function sendAct(s, epoch, k) { net.send('act', { id: ID, s, epoch, k: k ? 1 : 0 }); }
+    // c = so viele Sterne wurden angetippt (die Tafel zählt sie nach, falls eine einzelne Meldung verloren ging)
+    function sendAct(s, epoch, k, c) { net.send('act', { id: ID, s, epoch, k: k ? 1 : 0, c: c || 0 }); }
 
     function updateTapVisuals() {
       $('hold').classList.toggle('done', lightTapped);
-      $('star').classList.toggle('done', starTapped);
+      $('star').classList.remove('done');
     }
 
     // Zufällige Stelle für den Stern: nicht auf dem Punkt oder Kreis, nicht am Rand
@@ -525,12 +593,15 @@
       const or = Math.max(hr.width, hr.height) / 2;
       let x = m;
       let y = h * 0.8 - m;
-      for (let i = 0; i < 80; i++) {
+      for (let i = 0; i < 120; i++) {
         const cx = m + Math.random() * Math.max(1, w - 2 * m);
         const cy = m + Math.random() * Math.max(1, h * 0.8 - 2 * m);
         const free = fullScreen || Math.hypot(cx - ox, cy - oy) > or + d / 2 + 16;
-        if (free) { x = cx; y = cy; break; }
+        // Der nächste Stern soll deutlich woanders erscheinen als der vorige
+        const farFromLast = !lastStarPos || Math.hypot(cx - lastStarPos.x, cy - lastStarPos.y) > d * 1.6 || i > 100;
+        if (free && farFromLast) { x = cx; y = cy; break; }
       }
+      lastStarPos = { x, y };
       star.style.width = `${d}px`;
       star.style.height = `${d}px`;
       star.style.left = `${x}px`;
