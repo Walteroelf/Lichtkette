@@ -98,6 +98,7 @@
       holding = false;
       clearTimeout(resendTimer);
       scrPlay.hidden = true;
+      if ($('scr-switch')) $('scr-switch').hidden = true;
       scrMode.hidden = false;
       document.querySelectorAll('.card').forEach((c) => c.classList.toggle('last', c.dataset.mode === mode));
       document.querySelectorAll('[data-w]').forEach((b) => b.setAttribute('aria-pressed', String(parseInt(b.dataset.w, 10) === wait)));
@@ -129,8 +130,107 @@
       LK.store.set('lk_mode', mode);
       LK.audio.init();
       LK.keepAwake();
-      begin();
+      if (mode === 'taster') showSwitchSetup(); // erst den Taster einrichten
+      else begin();
     }));
+
+    // ---------- Taster einrichten: Taste anlernen oder aus einer Liste wählen ----------
+    // Viele Taster (zum Beispiel iSwitch oder Bluetooth-Schalter) senden die Leertaste, andere Enter, Pfeiltasten oder Ziffern.
+    // Die iPad-Schaltersteuerung (Bedienungshilfen) sendet dagegen Tipps statt Tasten: dafür gibt es "Nur Bildschirm".
+    const SW_KEYS = {
+      Space: 'Leertaste', Enter: 'Enter', NumpadEnter: 'Enter (Ziffernblock)', ArrowRight: 'Pfeil rechts', ArrowLeft: 'Pfeil links',
+      ArrowUp: 'Pfeil hoch', ArrowDown: 'Pfeil runter', Escape: 'Esc', Backspace: 'Rücktaste', Tab: 'Tab',
+    };
+    const IGNORE_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Dead', 'Unidentified'];
+    function keyLabel(e) {
+      if (SW_KEYS[e.code]) return SW_KEYS[e.code];
+      if (/^Digit\d$/.test(e.code)) return `Taste ${e.code.slice(5)}`;
+      if (/^Numpad\d$/.test(e.code)) return `Ziffernblock ${e.code.slice(6)}`;
+      if (/^Key[A-Z]$/.test(e.code)) return `Taste ${e.code.slice(3)}`;
+      if (e.key && e.key.length <= 12) return `Taste „${e.key}“`;
+      return e.code || 'unbekannte Taste';
+    }
+    function loadSwitch() {
+      try {
+        const o = JSON.parse(LK.store.get('lk_switch', 'null'));
+        if (o && ['key', 'any', 'tap'].includes(o.kind)) return o;
+      } catch (e) { /* kaputter Eintrag */ }
+      return { kind: 'default' };
+    }
+    let sw = loadSwitch();
+    function switchLabel(s) {
+      if (s.kind === 'key') return s.label || 'eine Taste';
+      if (s.kind === 'any') return 'jede Taste';
+      if (s.kind === 'tap') return 'nur Bildschirm (Tippen, Schaltersteuerung)';
+      return 'Leertaste oder Enter';
+    }
+    // Gehört dieser Tastendruck zum Taster dieses Geräts?
+    function switchMatches(e) {
+      switch (sw.kind) {
+        case 'key': return (sw.code && e.code === sw.code) || (!sw.code && !!sw.key && e.key === sw.key);
+        case 'any': return !IGNORE_KEYS.includes(e.key) && e.key !== 'Tab';
+        case 'tap': return false;
+        default: return e.key === ' ' || e.key === 'Enter' || e.code === 'Space';
+      }
+    }
+
+    const scrSwitch = $('scr-switch');
+    let swLearnedAt = 0; // Zeitpunkt, zu dem die Taste angelernt wurde (ein zweiter Druck startet das Spiel)
+
+    function renderSwitch() {
+      $('swResult').textContent = sw.kind === 'default' ? 'Noch keine Taste gewählt. Es gelten Leertaste und Enter.' : `Erkannt: ${switchLabel(sw)}`;
+      $('swResult').classList.toggle('ok', sw.kind !== 'default');
+      $('swHint').textContent = sw.kind === 'key' ? 'Drücke den Taster noch einmal zum Starten, oder tippe auf „Weiter“.' : '';
+      document.querySelectorAll('[data-swk]').forEach((b) => {
+        const v = b.dataset.swk;
+        const on = (v === 'any' && sw.kind === 'any') || (v === 'tap' && sw.kind === 'tap') || (sw.kind === 'key' && sw.code === v);
+        b.setAttribute('aria-pressed', String(on));
+      });
+    }
+
+    function showSwitchSetup() {
+      active = false;
+      holding = false;
+      clearTimeout(resendTimer);
+      scrMode.hidden = true;
+      scrPlay.hidden = true;
+      scrSwitch.hidden = false;
+      // Ist schon eine Taste eingestellt, startet ein Druck darauf sofort
+      swLearnedAt = sw.kind === 'key' ? performance.now() - 1000 : 0;
+      renderSwitch();
+      try { $('swTitle').focus({ preventScroll: true }); } catch (e) { /* ältere Browser */ }
+    }
+
+    function startFromSwitch() {
+      LK.store.set('lk_switch', JSON.stringify(sw));
+      scrSwitch.hidden = true;
+      begin();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (scrSwitch.hidden) return;
+      if (IGNORE_KEYS.includes(e.key) || e.key === 'Tab') return;
+      e.preventDefault();
+      if (e.repeat) return;
+      const now = performance.now();
+      const same = sw.kind === 'key' && ((sw.code && e.code === sw.code) || (!sw.code && e.key === sw.key));
+      if (same && swLearnedAt && now - swLearnedAt > 500) { startFromSwitch(); return; } // zweiter Druck: los
+      sw = { kind: 'key', code: e.code || '', key: e.key || '', label: keyLabel(e) };
+      swLearnedAt = now;
+      renderSwitch();
+    });
+    document.addEventListener('keyup', (e) => { if (!scrSwitch.hidden) e.preventDefault(); });
+
+    document.querySelectorAll('[data-swk]').forEach((b) => b.addEventListener('click', () => {
+      const v = b.dataset.swk;
+      if (v === 'any') sw = { kind: 'any' };
+      else if (v === 'tap') sw = { kind: 'tap' };
+      else sw = { kind: 'key', code: v, key: '', label: b.textContent.trim() };
+      swLearnedAt = 0;
+      renderSwitch();
+    }));
+    $('swGo').addEventListener('click', startFromSwitch);
+    $('swBack').addEventListener('click', () => { scrSwitch.hidden = true; showMode(); });
     document.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => {
       wait = parseInt(b.dataset.w, 10);
       LK.store.set('lk_wait', String(wait));
@@ -448,7 +548,7 @@
     hold.addEventListener('click', confirm);
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;
-      if (e.key === ' ' || e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) confirm(); }
+      if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) confirm(); }
     });
     // Der gelbe Stern ist ein eigenes Ziel (liegt über dem Licht-Ziel, löst das Licht nicht aus)
     const starBtn = $('star');
@@ -481,6 +581,15 @@
     // ---------- Start ----------
     $('roomInfo').textContent = `Raum: ${room}`;
     $('asBoard').href = `${location.href.split('?')[0]}?tafel=1&r=${room}`;
+    // Die Einstellungen am Gerät sind für Schüler versteckt: Sonst suchen sie sich die einfachsten heraus.
+    // Alles wird von der Lehrkraft vorgegeben (Lehrer-Ansicht oder Gerät auf der Tafel antippen).
+    // Aufschließen mit dem Link ...&opt=1 (bleibt auf diesem Gerät gemerkt), wieder zu mit &opt=0.
+    const optParam = new URLSearchParams(location.search).get('opt');
+    if (optParam === '1') LK.store.set('lk_opts', '1');
+    else if (optParam === '0') LK.store.set('lk_opts', '0');
+    const optsOpen = LK.store.get('lk_opts', '0') === '1';
+    $('optsBox').hidden = !optsOpen;
+    $('asBoardWrap').hidden = !optsOpen;
     showMode();
     net.start();
   };

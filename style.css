@@ -134,6 +134,28 @@ label { color: var(--muted); font-size: 14px; text-align: left; }
   .card.last::after { display: none; }
 }
 
+/* ---------- Taster einrichten ---------- */
+#scr-switch { overflow-y: auto; justify-content: flex-start; padding-top: max(28px, env(safe-area-inset-top)); }
+#scr-switch h1 { margin-bottom: 18px; outline: none; }
+.sw-big {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: min(560px, 100%);
+  padding: 26px 18px;
+  border: 2.5px dashed rgba(34, 211, 238, 0.7);
+  border-radius: 20px;
+  background: rgba(34, 211, 238, 0.07);
+  animation: swPulse 1.8s ease-in-out infinite;
+}
+.sw-big b { font-size: clamp(22px, 4vmin, 30px); }
+.sw-big small { color: var(--muted); font-size: 15px; }
+.sw-ico { font-size: 54px; line-height: 1; }
+@keyframes swPulse { 50% { background: rgba(34, 211, 238, 0.16); } }
+.sw-result { margin: 18px 0 4px; font-size: clamp(18px, 3vmin, 24px); font-weight: 600; color: var(--muted); }
+.sw-result.ok { color: #6ee7b7; }
+.sw-or { margin: 14px 0 8px; }
+.sw-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; width: min(640px, 100%); }
+.sw-actions { display: flex; gap: 12px; align-items: center; margin-top: 20px; padding-bottom: 20px; }
+
 /* ---------- Spieler-Ansicht ---------- */
 #scr-play { padding: 0; background: var(--bg); }
 #glow {

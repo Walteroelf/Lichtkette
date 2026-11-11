@@ -19,11 +19,17 @@ Ist die Runde voll (im ruhigen Modus mindestens 8 Weitergaben, bei vielen Gerät
 3. **GridPad:** Den **Spieler-Link** per Mail schicken (auf der Tafel unter ⚙ → „Spieler-Link kopieren“). Der Link bleibt gleich, solange der Raumcode gleich bleibt. Einmal als Lesezeichen anlegen, dann reicht ein Klick.
 4. **Auf jedem Gerät zuerst die Eingabeart wählen:**
    - 👆 **Tippen**: iPad oder Touchscreen. Ein Tipp irgendwo auf dem Bildschirm gibt das Licht weiter.
-   - 🔘 **Taster**: Taster, Schalter oder Leertaste. Auch ein Klick oder Tipp geht.
+   - 🔘 **Taster**: Taster, Schalter oder Leertaste. Danach kommt die **Taster-Einrichtung** (siehe unten). Auch ein Klick oder Tipp geht.
    - 👁 **Blick / Maus**: Augensteuerung. Es gibt einen großen Kreis in der Mitte. Der Rest des Bildschirms reagiert nicht, damit ein Blick daneben nichts auslöst.
-5. Unter der Auswahl lässt sich pro Gerät einstellen:
-   - **Licht wandert weiter nach** nie, 10 s oder 30 s. Dann geht das Licht von allein weiter, falls jemand gerade nicht kann. Auf der Tafel zeigt ein Ring, wie viel Zeit noch bleibt.
-   - **Ton auf diesem Gerät** an oder aus.
+5. **Alle anderen Einstellungen legt die Lehrkraft fest**, nicht das Kind: in der **Lehrer-Ansicht** oder auf der Tafel das Gerät antippen (Tippfläche, Größe, Zeit zählt nicht, Weiterwandern, Team, Stern, Fehltipps). Auf dem Startbildschirm der Geräte sind diese Einstellungen **versteckt**, damit niemand sich die einfachsten heraussucht. Zum Aufschließen an einem Gerät den Spieler-Link mit `&opt=1` am Ende öffnen (bleibt auf dem Gerät gemerkt, mit `&opt=0` wieder zu). Dort stehen dann auch „Ton auf diesem Gerät“ und der Link „Dieses Gerät als Tafel“.
+
+### Taster einrichten
+
+Wählt man „Taster“, kommt eine eigene Seite („Dein Taster“):
+- **Anlernen:** „Drücke jetzt deinen Taster“. Die App erkennt die Taste (zum Beispiel Leertaste, Enter, Pfeil rechts, Taste 1) und merkt sie sich auf diesem Gerät. Ein **zweiter Druck startet das Spiel**, oder man tippt auf „Weiter“. Ist schon eine Taste gespeichert, startet ein Druck darauf sofort.
+- **Aus einer Liste wählen:** Leertaste, Enter, Pfeiltasten, Taste 1 oder 2, **Jede Taste** oder **Nur Bildschirm** (für die iPad-Schaltersteuerung aus den Bedienungshilfen, die Tipps statt Tasten schickt).
+- Danach reagiert das Spiel **nur auf diese Taste** (und auf Tipps auf den Bildschirm). Andere Tasten werden ignoriert. Ohne Auswahl gelten Leertaste und Enter.
+- Im Spiel führt „⋯“ oben links zurück zur Auswahl.
 
 Jedes Gerät hat eine eigene **Farbe und Form** (Kreis, Dreieck, Quadrat …), damit man sich auch ohne Farbensehen zuordnen kann.
 

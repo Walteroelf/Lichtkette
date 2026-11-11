@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261111-0923">
+<meta name="build" content="20261111-0931">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -29,7 +29,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261111-0923">
+<link rel="stylesheet" href="style.css?v=20261111-0931">
 </head>
 <body>
 
@@ -130,7 +130,7 @@
     <button class="card" data-mode="taster"><span class="ico">🔘</span><b>Taster</b><small>Mit einem Taster, Schalter oder der Leertaste drücken.<br>Für Taster wie iSwitch.</small></button>
     <button class="card" data-mode="blick"><span class="ico">👁</span><b>Blick / Maus</b><small>Mit den Augen auf einen großen Kreis schauen oder klicken.<br>Für Augensteuerung wie das GridPad.</small></button>
   </div>
-  <div class="opts">
+  <div class="opts" id="optsBox" hidden>
     <div class="opt">
       <span>Licht wandert weiter nach</span>
       <div class="seg">
@@ -163,7 +163,36 @@
     </div>
   </div>
   <p id="cfgNote" class="foot" hidden>Die Tafel hat für dieses Gerät Einstellungen vorgegeben.</p>
-  <p class="foot"><span id="roomInfo"></span> · <a id="asBoard" href="#">Dieses Gerät als Tafel</a></p>
+  <p class="foot"><span id="roomInfo"></span><span id="asBoardWrap" hidden> · <a id="asBoard" href="#">Dieses Gerät als Tafel</a></span></p>
+</section>
+
+<!-- Spieler: Taster einrichten -->
+<section id="scr-switch" class="scr" hidden>
+  <h1 id="swTitle" tabindex="-1">Dein Taster</h1>
+  <div class="sw-big" id="swBig">
+    <span class="sw-ico">🔘</span>
+    <b>Drücke jetzt deinen Taster</b>
+    <small>Die App erkennt die Taste und merkt sie sich.</small>
+  </div>
+  <p id="swResult" class="sw-result">Noch keine Taste gewählt.</p>
+  <p id="swHint" class="info"></p>
+  <p class="info sw-or">Oder wähle eine Taste aus der Liste:</p>
+  <div class="sw-choices">
+    <button class="gm" data-swk="Space">Leertaste</button>
+    <button class="gm" data-swk="Enter">Enter</button>
+    <button class="gm" data-swk="ArrowRight">Pfeil rechts</button>
+    <button class="gm" data-swk="ArrowLeft">Pfeil links</button>
+    <button class="gm" data-swk="ArrowUp">Pfeil hoch</button>
+    <button class="gm" data-swk="ArrowDown">Pfeil runter</button>
+    <button class="gm" data-swk="Digit1">Taste 1</button>
+    <button class="gm" data-swk="Digit2">Taste 2</button>
+    <button class="gm" data-swk="any">Jede Taste</button>
+    <button class="gm" data-swk="tap">Nur Bildschirm (iPad-Schaltersteuerung)</button>
+  </div>
+  <div class="sw-actions">
+    <button id="swGo" class="big-btn">Weiter ▶</button>
+    <button id="swBack" class="btn ghost" type="button">Zurück</button>
+  </div>
 </section>
 
 <!-- Spieler: Spielansicht -->
@@ -319,13 +348,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261111-0923"></script>
-<script src="lib/qrcode.js?v=20261111-0923"></script>
-<script src="shared.js?v=20261111-0923"></script>
-<script src="net.js?v=20261111-0923"></script>
-<script src="board.js?v=20261111-0923"></script>
-<script src="player.js?v=20261111-0923"></script>
-<script src="teacher.js?v=20261111-0923"></script>
-<script src="main.js?v=20261111-0923"></script>
+<script src="lib/mqtt.min.js?v=20261111-0931"></script>
+<script src="lib/qrcode.js?v=20261111-0931"></script>
+<script src="shared.js?v=20261111-0931"></script>
+<script src="net.js?v=20261111-0931"></script>
+<script src="board.js?v=20261111-0931"></script>
+<script src="player.js?v=20261111-0931"></script>
+<script src="teacher.js?v=20261111-0931"></script>
+<script src="main.js?v=20261111-0931"></script>
 </body>
 </html>
