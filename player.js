@@ -127,6 +127,8 @@
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
     };
+    // Schatz-Licht, "ein Tipp reicht": Hinweis, dass der Stern von selbst mitkommt
+    const autoStarMsg = (light) => `${hintText()} · ★${light && light.n > 1 ? ` ×${light.n}` : ''} wird automatisch eingesammelt`;
     // Schatz-Licht: Was muss gerade noch passieren?
     const starMsg = () => {
       const total = starTotal();
@@ -405,8 +407,13 @@
 
       // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, erscheint ein gelber Stern zum Antippen (immer nur einer)
       const showStar = !!(iHold && holding && starTapNeeded() && !starsDone());
-      $('star').hidden = !showStar;
+      // "Ein Tipp reicht": Der Stern wird mit eingesammelt. Damit man sieht, dass bei diesem Gerät ein Schatz liegt,
+      // erscheint trotzdem ein gelber Stern, aber ohne Funktion (er reagiert nicht auf Tippen und löst nichts aus).
+      const showStarAuto = !!(iHold && holding && treasureHere() && starAuto());
+      $('star').hidden = !(showStar || showStarAuto);
+      $('star').classList.toggle('auto', showStarAuto);
       if (showStar && !$('star').dataset.placed) { placeStar(); armStarJump(); }
+      else if (showStarAuto && !$('star').dataset.placed) placeStar();
       // Wird der Stern jetzt automatisch eingesammelt (Einstellung geändert) und das Licht war schon getippt: weitergeben
       if (iHold && holding && lightTapped && treasureHere() && starAuto() && light && !light.z && !st.paused) finishPass(light, true);
 
@@ -426,7 +433,7 @@
       else if (performance.now() < flashUntil) msg = flashMsg;
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
-      else if (iHold) msg = starTapNeeded() ? starMsg() : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText());
+      else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';

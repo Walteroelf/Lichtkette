@@ -62,7 +62,7 @@ Wie ein Gerät die Sterne einsammelt, stellst du pro Gerät ein (Lehrer-Ansicht 
 | Einstellung | Tippen | Taster | Blick / Maus |
 |---|---|---|---|
 | **Stern extra antippen** | Gelbe Sterne nacheinander antippen, dann die Licht-Fläche | **Erst so oft drücken, wie Sterne da sind, dann einmal für das Licht** (bei 3 Sternen viermal). Der Stern wird nach dem Antippen durch den nächsten ersetzt. | Die Sterne erscheinen nacheinander als Ziel, zum Schluss kommt der Kreis. Es ist immer nur ein Ziel zu sehen. |
-| **Ein Tipp reicht** | Ein Tipp gibt das Licht weiter und sammelt **alle** Sterne dieses Geräts mit ein | Ein Druck | Ein Klick auf den Kreis |
+| **Ein Tipp reicht** | Ein Tipp gibt das Licht weiter und sammelt **alle** Sterne dieses Geräts mit ein. Der gelbe Stern erscheint trotzdem, **ohne Funktion**, mit dem Hinweis „★ ×2 wird automatisch eingesammelt“. | Ein Druck, gleiche Anzeige | Ein Klick auf den Kreis, gleiche Anzeige |
 
 Ohne Einstellung gilt: **Tippen = Stern extra antippen**, **Taster und Blick = ein Tipp reicht**. Beim Taster werden ein Dauerdruck und ein sehr schneller zweiter Druck (unter 0,3 Sekunden) nicht doppelt gezählt. Auf der Tafel steht beim Stern die Zahl der noch offenen Sterne (×2, ×3 …).
 
