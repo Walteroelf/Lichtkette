@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261110-1023">
+<meta name="build" content="20261111-0908">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -29,7 +29,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261110-1023">
+<link rel="stylesheet" href="style.css?v=20261111-0908">
 </head>
 <body>
 
@@ -200,7 +200,7 @@
   </div>
 
   <dialog id="tDlg">
-    <h2>Lehrer-QR</h2>
+    <h2 tabindex="-1" autofocus>Lehrer-QR</h2>
     <p class="warn">Nur für die Lehrkraft! Schüler dürfen diesen Code nicht sehen oder scannen, sonst können sie das Spiel steuern.</p>
     <div id="tQr"></div>
     <p class="info">Das ist ein anderer Code als der Schüler-QR. Mit dem Lehrer-Gerät scannen und dann sofort auf „Verbergen“ tippen. Nach 90 Sekunden verschwindet er von allein.</p>
@@ -211,7 +211,7 @@
   </dialog>
 
   <dialog id="devDlg">
-    <h2 id="devTitle">Gerät</h2>
+    <h2 id="devTitle" tabindex="-1" autofocus>Gerät</h2>
     <div class="stack tight">
       <button id="devBlink" class="btn" type="button">Gerät aufblinken lassen</button>
     </div>
@@ -245,7 +245,7 @@
   </dialog>
 
   <dialog id="dlg">
-    <h2>Tafel</h2>
+    <h2 tabindex="-1" autofocus>Tafel</h2>
     <form id="roomForm" class="stack">
       <label for="roomInput">Raumcode (bleibt gleich, solange du ihn nicht änderst)</label>
       <div class="row">
@@ -301,13 +301,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261110-1023"></script>
-<script src="lib/qrcode.js?v=20261110-1023"></script>
-<script src="shared.js?v=20261110-1023"></script>
-<script src="net.js?v=20261110-1023"></script>
-<script src="board.js?v=20261110-1023"></script>
-<script src="player.js?v=20261110-1023"></script>
-<script src="teacher.js?v=20261110-1023"></script>
-<script src="main.js?v=20261110-1023"></script>
+<script src="lib/mqtt.min.js?v=20261111-0908"></script>
+<script src="lib/qrcode.js?v=20261111-0908"></script>
+<script src="shared.js?v=20261111-0908"></script>
+<script src="net.js?v=20261111-0908"></script>
+<script src="board.js?v=20261111-0908"></script>
+<script src="player.js?v=20261111-0908"></script>
+<script src="teacher.js?v=20261111-0908"></script>
+<script src="main.js?v=20261111-0908"></script>
 </body>
 </html>

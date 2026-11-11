@@ -407,6 +407,7 @@ dialog {
 .devshape { display: inline-block; width: 1.1em; height: 1.1em; vertical-align: -0.15em; margin-right: 6px; }
 .devshape svg { width: 100%; height: 100%; fill: currentColor; stroke: currentColor; }
 #cv { cursor: pointer; }
+dialog h2:focus { outline: none; } /* Der Fokus liegt beim Öffnen auf der Überschrift, damit keine Bildschirmtastatur aufgeht */
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 dialog .btn.close { width: 100%; border-color: rgba(34, 211, 238, 0.6); }
 

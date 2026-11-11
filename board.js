@@ -711,6 +711,12 @@
     };
     net.onstatus = setConn;
 
+    // Beim Öffnen eines Fensters soll keine Bildschirmtastatur aufgehen: kein Eingabefeld darf den Fokus behalten
+    function noKeyboard() {
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.blur) a.blur();
+    }
+
     let warnTimer = null;
     function setConn(ok) {
       const partial = ok && net.upCount < net.total; // nur einer von zwei Servern erreichbar: läuft, aber ohne Reserve
@@ -1320,6 +1326,7 @@
       $('modeBox').hidden = isHost !== true;
       markSettings();
       $('dlg').showModal();
+      noKeyboard();
     });
     $('dlgClose').addEventListener('click', () => $('dlg').close());
     $('copyBtn').addEventListener('click', copyLink);
@@ -1346,6 +1353,7 @@
       $('dlg').close();
       buildTeacherQr();
       $('tDlg').showModal();
+      noKeyboard();
       clearTimeout(tHideTimer);
       tHideTimer = setTimeout(() => $('tDlg').close(), 90000);
     });
@@ -1399,6 +1407,7 @@
       $('devTitle').innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> Gerät`;
       markDev();
       $('devDlg').showModal();
+      noKeyboard();
     }
     $('devBlink').addEventListener('click', () => {
       if (devId === null) return;
