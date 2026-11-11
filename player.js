@@ -33,6 +33,12 @@
     let lastMiss = 0;
     let lastConfirm = 0;
     let missUntil = 0;
+    // Schatz-Licht: Auf einem Gerät mit Stern muss man das Licht UND den Stern antippen (Reihenfolge egal)
+    let lightTapped = false;
+    let starTapped = false;
+    let lastTapAt = 0;
+    // '' = je nach Eingabeart (Tippen: antippen, Taster und Blick: automatisch), 'auto' oder 'tap'
+    let starPref = ['auto', 'tap'].includes(LK.store.get('lk_sa', '')) ? LK.store.get('lk_sa', '') : '';
 
     let active = false;   // Eingabeart gewählt, Spiel läuft
     let st = null;          // letzter Spielstand
@@ -55,6 +61,15 @@
     const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
     const eTeam = () => { const t = cfg().tt; if (t === 'a' || t === 'b') return t; return t === 'x' ? '' : team; };
     const eSize = () => cfg().sz || 1;
+    const starHere = () => !!(st && st.gm === 'schatz' && st.stars && st.stars.includes(ID));
+    // Der Stern wird automatisch eingesammelt, wenn das Gerät es so eingestellt hat (die Tafel kann das vorgeben)
+    const starAuto = () => {
+      const c = cfg();
+      if (c.sa !== undefined) return c.sa === 1;
+      if (starPref) return starPref === 'auto';
+      return mode !== 'touch';
+    };
+    const starTapNeeded = () => starHere() && !starAuto();
 
     const scrMode = $('scr-mode');
     const scrPlay = $('scr-play');
@@ -91,6 +106,7 @@
       document.querySelectorAll('[data-nt]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.nt === '1') === noTime)));
       document.querySelectorAll('[data-team]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.team === team)));
       document.querySelectorAll('[data-miss]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.miss === '1') === missOn)));
+      document.querySelectorAll('[data-sapref]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sapref === starPref)));
       $('cfgNote').hidden = !Object.keys(cfg()).length;
     }
 
@@ -99,6 +115,13 @@
     const hintText = () => {
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
+    };
+    // Schatz-Licht: Was muss gerade noch passieren?
+    const starMsg = () => {
+      if (mode === 'taster') return starTapped ? 'Jetzt noch einmal für das Licht' : 'Erst den Stern ★, dann das Licht: zweimal drücken';
+      if (lightTapped) return 'Tippe auch den Stern ★';
+      if (starTapped) return mode === 'blick' ? 'Schau auch auf das Licht' : 'Tippe auch das Licht';
+      return `${hintText()} und den Stern ★`;
     };
 
     document.querySelectorAll('.card').forEach((c) => c.addEventListener('click', () => {
@@ -127,6 +150,11 @@
     document.querySelectorAll('[data-nt]').forEach((b) => b.addEventListener('click', () => {
       noTime = b.dataset.nt === '1';
       LK.store.set('lk_nt', noTime ? '1' : '0');
+      showMode();
+    }));
+    document.querySelectorAll('[data-sapref]').forEach((b) => b.addEventListener('click', () => {
+      starPref = b.dataset.sapref;
+      LK.store.set('lk_sa', starPref);
       showMode();
     }));
     document.querySelectorAll('[data-miss]').forEach((b) => b.addEventListener('click', () => {
@@ -233,6 +261,10 @@
 
       if (iHold && !holding) {
         holding = true;
+        lightTapped = false;
+        starTapped = false;
+        $('star').dataset.placed = '';
+        updateTapVisuals();
         lockUntil = performance.now() + MODES[mode].lock;
         const hold = $('hold');
         if (useRandom()) {
@@ -244,8 +276,18 @@
         setTimeout(render, MODES[mode].lock + 30);
       } else if (!iHold && holding) {
         holding = false;
+        lightTapped = false;
+        starTapped = false;
+        updateTapVisuals();
       }
       if (!iHold) $('hold').hidden = true;
+
+      // Schatz-Licht: Liegt bei diesem Gerät ein Stern, erscheint ein gelber Stern zum Antippen
+      const showStar = !!(iHold && holding && starTapNeeded());
+      $('star').hidden = !showStar;
+      if (showStar && !$('star').dataset.placed) placeStar();
+      // Der Stern ist verschwunden oder wird jetzt automatisch eingesammelt, das Licht war schon getippt: weitergeben
+      if (iHold && holding && lightTapped && !starTapNeeded() && light && !light.z && !st.paused) finishPass(light, starHere());
 
       scrPlay.classList.toggle('on', iHold);
       scrPlay.classList.toggle('fin', isFin);
@@ -262,7 +304,7 @@
       else if (st.paused) msg = 'Pause';
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
-      else if (iHold) msg = (clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText();
+      else if (iHold) msg = starTapNeeded() ? starMsg() : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText());
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';
@@ -286,21 +328,64 @@
     }
 
     // ---------- Das Licht weitergeben ----------
+    // Licht-Fläche getippt (oder Taster gedrückt, oder Kreis angeschaut)
     function confirm() {
       if (!holding || performance.now() < lockUntil || !st) return;
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
+      if (starTapNeeded()) {
+        // Schatz-Licht: Licht und Stern müssen beide getippt werden, die Reihenfolge ist egal
+        const now = performance.now();
+        if (mode === 'taster') {
+          // Ein Knopf: erster Druck = Stern einsammeln, zweiter Druck = Licht weitergeben. Prellen und Dauerdruck zählen nicht doppelt.
+          if (now - lastTapAt < 300) return;
+          lastTapAt = now;
+          if (!starTapped) {
+            starTapped = true;
+            if (sound && slot >= 0) LK.audio.note(slot, 0.3, 0.8, 0, 2);
+            if (navigator.vibrate) navigator.vibrate(15);
+            updateTapVisuals();
+            render();
+            return;
+          }
+          finishPass(light, true);
+          return;
+        }
+        lightTapped = true;
+        if (starTapped) finishPass(light, true);
+        else { updateTapVisuals(); render(); }
+        return;
+      }
+      finishPass(light, starHere()); // kein Stern oder automatisch: einsammeln, wenn bei diesem Gerät einer liegt
+    }
+
+    // Gelben Stern getippt
+    function tapStar() {
+      if (!holding || performance.now() < lockUntil || !st || !starTapNeeded()) return;
+      const light = st.lights.find((l) => l.h === ID);
+      if (!light || light.z || st.paused) return;
+      starTapped = true;
+      if (sound && slot >= 0) LK.audio.note(slot, 0.3, 0.8, 0, 2);
+      if (navigator.vibrate) navigator.vibrate(15);
+      if (lightTapped) finishPass(light, true);
+      else { updateTapVisuals(); render(); }
+    }
+
+    function finishPass(light, collect) {
       holding = false;
+      lightTapped = false;
+      starTapped = false;
       lastConfirm = performance.now();
       const s = light.s;
       const epoch = st.epoch;
-      sendAct(s, epoch);
+      const k = collect ? 1 : 0;
+      sendAct(s, epoch, k);
       // Ging die Nachricht verloren, wird sie wiederholt, bis die Tafel das Licht weitergegeben hat
       let tries = 0;
       const again = () => {
         if (!st || !st.lights.some((l) => l.h === ID && l.s === s) || tries >= 4) return;
         tries++;
-        sendAct(s, epoch);
+        sendAct(s, epoch, k);
         resendTimer = setTimeout(again, RESEND_MS);
       };
       clearTimeout(resendTimer);
@@ -310,11 +395,45 @@
       if (navigator.vibrate) navigator.vibrate(25);
       sent();
       $('hold').hidden = true;
+      $('star').hidden = true;
+      updateTapVisuals();
       scrPlay.classList.remove('on');
-      $('msg').textContent = 'Weitergegeben ✓';
+      $('msg').textContent = collect ? 'Stern eingesammelt ★' : 'Weitergegeben ✓';
     }
 
-    function sendAct(s, epoch) { net.send('act', { id: ID, s, epoch }); }
+    function sendAct(s, epoch, k) { net.send('act', { id: ID, s, epoch, k: k ? 1 : 0 }); }
+
+    function updateTapVisuals() {
+      $('hold').classList.toggle('done', lightTapped);
+      $('star').classList.toggle('done', starTapped);
+    }
+
+    // Zufällige Stelle für den Stern: nicht auf dem Punkt oder Kreis, nicht am Rand
+    function placeStar() {
+      const star = $('star');
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const d = Math.min(Math.max(90, Math.min(Math.min(w, h) * 0.17, 160)) * eSize(), Math.min(w, h) * 0.4);
+      const m = d / 2 + 18;
+      const hr = $('hold').getBoundingClientRect();
+      const fullScreen = hr.width > w * 0.9 && hr.height > h * 0.9; // Tippen auf den ganzen Bildschirm: kein Hindernis
+      const ox = hr.left + hr.width / 2;
+      const oy = hr.top + hr.height / 2;
+      const or = Math.max(hr.width, hr.height) / 2;
+      let x = m;
+      let y = h * 0.8 - m;
+      for (let i = 0; i < 80; i++) {
+        const cx = m + Math.random() * Math.max(1, w - 2 * m);
+        const cy = m + Math.random() * Math.max(1, h * 0.8 - 2 * m);
+        const free = fullScreen || Math.hypot(cx - ox, cy - oy) > or + d / 2 + 16;
+        if (free) { x = cx; y = cy; break; }
+      }
+      star.style.width = `${d}px`;
+      star.style.height = `${d}px`;
+      star.style.left = `${x}px`;
+      star.style.top = `${y}px`;
+      star.dataset.placed = '1';
+    }
 
     function sent() {
       const r = $('ripple');
@@ -329,8 +448,13 @@
     hold.addEventListener('click', confirm);
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;
-      if (e.key === ' ' || e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); confirm(); }
+      if (e.key === ' ' || e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) confirm(); }
     });
+    // Der gelbe Stern ist ein eigenes Ziel (liegt über dem Licht-Ziel, löst das Licht nicht aus)
+    const starBtn = $('star');
+    starBtn.innerHTML = LK.shapeSvg(6);
+    starBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.pointerType === 'touch') { e.preventDefault(); tapStar(); } });
+    starBtn.addEventListener('click', (e) => { e.stopPropagation(); tapStar(); });
 
     // Fehltipp (nur Staffel, nur wenn die Tafel Strafpause eingeschaltet hat und dieses Gerät mitmacht):
     // ein Tipp im falschen Moment (kein Licht da) oder neben den Punkt bzw. Kreis

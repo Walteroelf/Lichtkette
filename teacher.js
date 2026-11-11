@@ -19,6 +19,7 @@
   const OPTS = [
     { key: 'rnd', label: 'Tippfläche', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'fest'], ['1', 'springender Punkt']] },
     { key: 'sz', label: 'Größe des Punkts oder Kreises', type: 'float', vals: [['', 'wie am Gerät'], ['0.75', 'klein'], ['1', 'normal'], ['1.4', 'groß']] },
+    { key: 'sa', label: 'Stern einsammeln (Schatz-Licht): Taster = zweimal drücken (erst Stern, dann Licht), Blick = zweites Ziel', type: 'int', vals: [['', 'wie am Gerät'], ['1', 'ein Tipp reicht'], ['0', 'Stern extra antippen']] },
     { key: 'pn', label: 'Fehltipps (Staffel)', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'ohne Strafe'], ['1', 'mit Strafe']] },
     { key: 'nt', label: 'Zeit dieses Geräts (Zeitspiel, Staffel)', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'zählt'], ['1', 'zählt nicht']] },
     { key: 'w', label: 'Licht wandert weiter nach', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'nie'], ['10', '10 s'], ['30', '30 s']] },
@@ -168,7 +169,7 @@
     // ---------- Steuerung ----------
     $('tPause').addEventListener('click', () => { if (priv) send({ c: 'pause', on: !priv.paused }); });
     $('tGo').addEventListener('click', () => send({ c: 'go' }));
-    $('tRestart').addEventListener('click', () => { if (window.confirm('Die Runde wirklich neu starten?')) send({ c: 'restart' }); });
+    $('tRestart').addEventListener('click', () => { if (window.confirm('Die laufende Runde abbrechen und neu starten?')) send({ c: 'restart' }); });
 
     const setting = (attr, key, parse) => document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
       send({ c: 'settings', patch: { [key]: parse(b.dataset[attr === 'tgm' ? 'tgm' : attr]) } });
@@ -179,6 +180,7 @@
     setting('tnl', 'nl', (v) => parseInt(v, 10));
     setting('tbpm', 'bpm', (v) => parseInt(v, 10));
     setting('tpen', 'pen', (v) => parseInt(v, 10));
+    setting('tnr', 'nr', (v) => parseInt(v, 10));
 
     // ---------- Anzeige ----------
     const cards = {};
@@ -257,6 +259,8 @@
       mark('tnl', p.nl);
       mark('tbpm', p.bpm);
       mark('tpen', p.pen);
+      mark('tnr', p.nr);
+      $('tGo').textContent = p.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
       document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = el.dataset.tfor !== p.gm; });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';
 

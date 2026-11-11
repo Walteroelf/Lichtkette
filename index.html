@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261111-0908">
+<meta name="build" content="20261111-0923">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -29,7 +29,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261111-0908">
+<link rel="stylesheet" href="style.css?v=20261111-0923">
 </head>
 <body>
 
@@ -96,6 +96,10 @@
         <label id="tGnLabel">Weitergaben pro Runde</label>
         <div class="seg wide"><button data-tgn="0">Auto</button><button data-tgn="10">10</button><button data-tgn="15">15</button><button data-tgn="20">20</button></div>
       </div>
+      <div class="t-row">
+        <label>Nach einer Runde</label>
+        <div class="seg wide"><button data-tnr="1">wartet auf „Neue Runde“</button><button data-tnr="0">geht automatisch weiter</button></div>
+      </div>
     </section>
 
     <section class="t-card">
@@ -145,6 +149,10 @@
       <span>Zeit dieses Geräts (Zeitspiel, Staffel)</span>
       <div class="seg"><button data-nt="0">zählt</button><button data-nt="1">zählt nicht</button></div>
     </div>
+    <div class="opt" title="Nur für das Schatz-Licht. Liegt bei diesem Gerät ein Stern, erscheint ein gelber Stern. „antippen“: Licht und Stern müssen beide getippt werden, in beliebiger Reihenfolge (mit Taster: zweimal drücken, erst der Stern, dann das Licht; mit Blick: zweites Ziel). „automatisch“: Ein Tipp reicht, der Stern wird mit eingesammelt. Automatisch: Tippen = antippen, Taster und Blick = automatisch.">
+      <span>Stern einsammeln (Schatz-Licht)</span>
+      <div class="seg"><button data-sapref="">automatisch je nach Eingabeart</button><button data-sapref="auto">ein Tipp reicht</button><button data-sapref="tap">Stern extra antippen</button></div>
+    </div>
     <div class="opt" title="Nur für die Staffel, nur bei Tippen und Maus, und nur wenn die Tafel Strafpause eingeschaltet hat. Ein Tipp im falschen Moment oder neben den Punkt hält das Licht des eigenen Teams kurz an.">
       <span>Fehltipps (Staffel)</span>
       <div class="seg"><button data-miss="0">ohne Strafe</button><button data-miss="1">mit Strafe</button></div>
@@ -169,6 +177,7 @@
   <p id="msg"></p>
   <p id="hint" class="sr-only"></p>
   <button id="hold" aria-label="Licht weitergeben" hidden></button>
+  <button id="star" aria-label="Stern einsammeln" hidden></button>
   <div id="prog"><i></i></div>
   <span id="conn" class="dot bad"></span>
   <button id="change" aria-label="Eingabeart ändern">⋯</button>
@@ -200,6 +209,7 @@
   </div>
 
   <dialog id="tDlg">
+    <button type="button" class="dlg-x" aria-label="Schließen">✕</button>
     <h2 tabindex="-1" autofocus>Lehrer-QR</h2>
     <p class="warn">Nur für die Lehrkraft! Schüler dürfen diesen Code nicht sehen oder scannen, sonst können sie das Spiel steuern.</p>
     <div id="tQr"></div>
@@ -211,6 +221,7 @@
   </dialog>
 
   <dialog id="devDlg">
+    <button type="button" class="dlg-x" aria-label="Schließen">✕</button>
     <h2 id="devTitle" tabindex="-1" autofocus>Gerät</h2>
     <div class="stack tight">
       <button id="devBlink" class="btn" type="button">Gerät aufblinken lassen</button>
@@ -223,6 +234,10 @@
     <div class="stack tight">
       <label>Größe des Punkts oder Kreises</label>
       <div class="seg wide" data-cfg="sz" data-type="float"><button data-v="">wie am Gerät</button><button data-v="0.75">klein</button><button data-v="1">normal</button><button data-v="1.4">groß</button></div>
+    </div>
+    <div class="stack tight">
+      <label>Stern einsammeln (Schatz-Licht)</label>
+      <div class="seg wide" data-cfg="sa" data-type="int"><button data-v="">wie am Gerät</button><button data-v="1">ein Tipp reicht</button><button data-v="0">Stern extra antippen</button></div>
     </div>
     <div class="stack tight">
       <label>Fehltipps (Staffel, Tippen und Maus)</label>
@@ -245,6 +260,7 @@
   </dialog>
 
   <dialog id="dlg">
+    <button type="button" class="dlg-x" aria-label="Schließen">✕</button>
     <h2 tabindex="-1" autofocus>Tafel</h2>
     <form id="roomForm" class="stack">
       <label for="roomInput">Raumcode (bleibt gleich, solange du ihn nicht änderst)</label>
@@ -282,6 +298,8 @@
       </div>
       <label id="gnLabel">Weitergaben pro Runde</label>
       <div class="seg wide"><button data-gn="0">Auto</button><button data-gn="10">10</button><button data-gn="15">15</button><button data-gn="20">20</button></div>
+      <label>Nach einer Runde</label>
+      <div class="seg wide"><button data-nr="1">wartet auf „Neue Runde“</button><button data-nr="0">geht automatisch weiter</button></div>
     </div>
     <div class="stack">
       <button id="copyBtn" class="btn">Spieler-Link kopieren</button>
@@ -301,13 +319,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261111-0908"></script>
-<script src="lib/qrcode.js?v=20261111-0908"></script>
-<script src="shared.js?v=20261111-0908"></script>
-<script src="net.js?v=20261111-0908"></script>
-<script src="board.js?v=20261111-0908"></script>
-<script src="player.js?v=20261111-0908"></script>
-<script src="teacher.js?v=20261111-0908"></script>
-<script src="main.js?v=20261111-0908"></script>
+<script src="lib/mqtt.min.js?v=20261111-0923"></script>
+<script src="lib/qrcode.js?v=20261111-0923"></script>
+<script src="shared.js?v=20261111-0923"></script>
+<script src="net.js?v=20261111-0923"></script>
+<script src="board.js?v=20261111-0923"></script>
+<script src="player.js?v=20261111-0923"></script>
+<script src="teacher.js?v=20261111-0923"></script>
+<script src="main.js?v=20261111-0923"></script>
 </body>
 </html>

@@ -37,9 +37,22 @@ Auf der Tafel unter ⚙ → **Spielart** wählen. Die Spielart gilt für alle Ge
 | **Rhythmus** | Das Licht springt im **Takt** weiter (Tempo: langsam, mittel, schnell). Gibt ein Gerät das Licht weiter, geht es erst auf dem nächsten Schlag los. Jede Eingabe klingt also im Takt, egal wann sie kommt. Wer länger braucht, hält das Licht einfach, der Beat läuft weiter. Alle 3 Weitergaben kommt eine Schicht dazu: Bassdrum, Hi-Hat, Clap, Bass. |
 | **Staffel** | Zwei Teams (Blau und Pink), jedes mit **eigenem Licht**. Wer zuerst die Weitergaben schafft, gewinnt. Die Teams sehen oben ihren Fortschritt. |
 | **Doppelte Lichter** | Zwei oder drei Lichter gleichzeitig, jedes mit eigener Farbe und Nummer. Ein Gerät hat höchstens ein Licht. Gezählt werden alle Weitergaben zusammen. |
-| **Schatz-Licht** | Bei einzelnen Geräten liegt ein Stern (bei etwa jedem zweiten, höchstens drei). Landet das Licht dort, wird er eingesammelt, und ein neuer erscheint woanders. Ziel: 10, 15 oder 20 Sterne (Auto: 8). Das Licht wählt mit etwas Vorliebe Geräte mit Stern. |
+| **Schatz-Licht** | Bei einzelnen Geräten liegt ein Stern (bei etwa jedem zweiten, höchstens drei). Hat ein Gerät das Licht und liegt bei ihm ein Stern, erscheint auf dem Gerät ein **gelber Stern**. Man muss **das Licht und den Stern antippen, die Reihenfolge ist egal**, dann ist der Stern eingesammelt und das Licht wandert weiter. Wird nur das Licht weitergegeben (zum Beispiel durch das automatische Weiterwandern), bleibt der Stern liegen. Ziel: 10, 15 oder 20 Sterne (Auto: 8). Das Licht wählt mit etwas Vorliebe Geräte mit Stern. |
 
 **Start:** Staffel, Rhythmus und Zeitspiel beginnen mit „Los ▶“ und Countdown. Die anderen starten sofort.
+
+**Nach einer Runde:** Standardmäßig wartet die Tafel auf den Knopf **„Neue Runde ▶“** (mit Countdown). Du kannst unter ⚙ oder in der Lehrer-Ansicht (**Nach einer Runde**) auf „geht automatisch weiter“ umstellen. Eine laufende Runde abbrechen: ⚙ → Neue Runde starten oder in der Lehrer-Ansicht „Neue Runde“.
+
+### Schatz-Licht: Stern einsammeln für jede Eingabeart
+
+Wie der Stern eingesammelt wird, stellst du pro Gerät ein (Startbildschirm des Geräts oder Lehrer-Ansicht bzw. Tafel → Gerät antippen → **Stern einsammeln**):
+
+| Einstellung | Tippen | Taster | Blick / Maus |
+|---|---|---|---|
+| **Stern extra antippen** | Licht-Fläche und gelber Stern, Reihenfolge egal | **Zweimal drücken: erst der Stern, dann das Licht.** Der Stern wird nach dem ersten Druck grau. | Der Stern ist ein **zweites Ziel**, auf das man zusätzlich schaut oder klickt. |
+| **Ein Tipp reicht** | Ein Tipp gibt das Licht weiter und sammelt den Stern mit ein | Ein Druck | Ein Klick auf den Kreis |
+
+Ohne Einstellung gilt: **Tippen = Stern extra antippen**, **Taster und Blick = ein Tipp reicht**. So muss niemand zwei Ziele treffen, außer die Lehrkraft stellt es so ein. Beim Taster werden ein Dauerdruck und ein sehr schneller zweiter Druck (unter 0,3 Sekunden) nicht doppelt gezählt.
 
 ### Staffel: Teams und „Zeit zählt nicht“
 - **Team** wählt jedes Gerät auf dem Startbildschirm: automatisch (die Tafel verteilt gleichmäßig), Blau oder Pink. Damit lassen sich Teams so mischen, dass beide ähnlich fit sind.

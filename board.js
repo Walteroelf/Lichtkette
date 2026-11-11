@@ -89,6 +89,8 @@
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: readNum('lk_gn', GN_OPTIONS, 0), nl: readNum('lk_nl', NL_OPTIONS, 2), bpm: readNum('lk_bpm', BPM_OPTIONS, 90),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
+      // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
+      nr: readNum('lk_nr', [0, 1], 1),
       // Zeitspiel: ph = ready | count | play, acc = gezählte Zeit in ms, run = Uhr läuft,
       // ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit, n = Geräteanzahl für die Bestzeit
       ph: 'play', acc: 0, run: false, ft: 0, rec: 0, best: 0, n: 0, cd: 0,
@@ -247,29 +249,22 @@
       ensureStars();
     }
 
-    function reqPass(li) {
-      if (st.gm === 'rhythmus') { pendingPass[li] = true; return; } // wird beim nächsten Schlag ausgeführt
-      passLight(li);
+    // collect: Das Gerät meldet, dass es auch den Stern angetippt hat (Schatz-Licht). Ohne Meldung bleibt der Stern liegen.
+    function reqPass(li, collect) {
+      if (st.gm === 'rhythmus') { pendingPass[li] = collect ? 2 : 1; return; } // wird beim nächsten Schlag ausgeführt
+      passLight(li, !!collect);
     }
 
-    function passLight(li) {
+    function passLight(li, collect) {
       if (st.finale || st.ph !== 'play' || finishing || st.paused) return;
       const l = st.lights[li];
       if (!l || !l.h || l.z) return;
       st.chain++;
       if (st.gm === 'staffel') st.tc[li]++;
-      if (st.gm === 'staffel' ? st.tc[li] >= st.goal : (st.gm !== 'schatz' && st.chain >= st.goal)) { startFinale(li); return; }
-      const next = pickFor(li);
-      setLight(li, next);
-      if (st.gm === 'schatz' && next) collectStar(next);
-      if (st.gm === 'schatz' && st.sc >= st.goal) {
-        // der letzte Stern bleibt kurz sichtbar, dann kommt das Finale
-        finishing = true;
-        publish();
-        clearTimeout(finTimer);
-        finTimer = setTimeout(() => { if (isHost === true) startFinale(li); }, 1100);
-        return;
-      }
+      // Schatz-Licht: Der Stern bei diesem Gerät wird eingesammelt, wenn das Gerät ihn angetippt hat
+      if (st.gm === 'schatz' && collect && st.stars.includes(l.h)) collectStar(l.h);
+      if (st.gm === 'staffel' ? st.tc[li] >= st.goal : (st.gm === 'schatz' ? st.sc >= st.goal : st.chain >= st.goal)) { startFinale(li); return; }
+      setLight(li, pickFor(li));
       publish();
     }
 
@@ -314,11 +309,16 @@
           LK.audio.bass(l && l.h && st.players[l.h] !== undefined ? st.players[l.h] : 0);
         }
       }
-      Object.keys(pendingPass).forEach((k) => { delete pendingPass[k]; passLight(parseInt(k, 10)); });
+      Object.keys(pendingPass).forEach((k) => {
+        const collect = pendingPass[k] === 2;
+        delete pendingPass[k];
+        passLight(parseInt(k, 10), collect);
+      });
     }
 
     // Neue Runde. Wo es nötig ist, wartet sie auf "Los", sonst geht das Spiel gleich los.
-    function resetRound(bump) {
+    // afterFinale: Die Runde ging gerade zu Ende. Je nach Einstellung wartet die nächste dann auf den Knopf "Neue Runde".
+    function resetRound(bump, afterFinale) {
       clearTimeout(finTimer);
       clearTimeout(cdTimer);
       stopBeat();
@@ -344,7 +344,7 @@
       st.cd = 0;
       bags = {};
       if (st.gm === 'staffel') assignAllTeams(); else st.team = {};
-      st.ph = needsStart() ? 'ready' : 'play';
+      st.ph = (needsStart() || (afterFinale && st.nr === 1)) ? 'ready' : 'play';
       st.n = aliveIds().length;
       st.best = isTm() ? bestFor(st.goal, st.n) : 0;
       since = Date.now();
@@ -389,6 +389,7 @@
       LK.store.set('lk_nl', String(st.nl));
       LK.store.set('lk_bpm', String(st.bpm));
       LK.store.set('lk_pen', String(st.pen));
+      LK.store.set('lk_nr', String(st.nr));
       resetRound(true);
       publish();
     }
@@ -414,7 +415,7 @@
       publish();
       finTimer = setTimeout(() => {
         if (isHost !== true) return;
-        resetRound(true);
+        resetRound(true, true);
         publish();
       }, (isTm() || st.gm === 'staffel') ? 8000 : FINALE_MS);
     }
@@ -531,7 +532,7 @@
     function privSnapshot() {
       const now = Date.now();
       return {
-        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, bpm: st.bpm, pen: st.pen,
+        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, bpm: st.bpm, pen: st.pen, nr: st.nr,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
         devices: aliveIds().map((id) => ({
@@ -568,6 +569,7 @@
 
     const CFG_RULES = {
       rnd: (v) => v === 0 || v === 1,
+      sa: (v) => v === 0 || v === 1,
       pn: (v) => v === 0 || v === 1,
       nt: (v) => v === 0 || v === 1,
       sz: (v) => v === 0.75 || v === 1 || v === 1.4,
@@ -586,6 +588,7 @@
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
           if (BPM_OPTIONS.includes(p.bpm)) patch.bpm = p.bpm;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
+          if (p.nr === 0 || p.nr === 1) patch.nr = p.nr;
           if (Object.keys(patch).length) applySettings(patch);
           break;
         }
@@ -680,7 +683,7 @@
       if (isHost !== true || st.finale || st.ph !== 'play' || finishing || st.paused) return;
       const li = st.lights.findIndex((l) => l.h === m.id);
       if (li < 0 || m.epoch !== st.epoch || m.s !== st.lights[li].s) return;
-      reqPass(li);
+      reqPass(li, m.k === 1);
     });
 
     net.on('miss', (m) => {
@@ -744,7 +747,7 @@
       gm: 'klassik', lights: [], vis: [], autoSince: [], round: -1, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
       ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1,
-      stars: [], sc: 0, starFx: {}, beatT: 0, team: {}, paused: false,
+      stars: [], sc: 0, beatT: 0, team: {}, paused: false,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -856,9 +859,10 @@
       view.win = s.win;
       view.stars = s.stars || [];
       if (s.sc > view.sc && !first) {
-        // Stern eingesammelt: die Wirkung zeigt sich, sobald das Licht dort ankommt
+        // Stern eingesammelt: Funkeln bei dem Gerät, das ihn angetippt hat (das Licht war gerade dort)
         const l = view.lights[0];
-        if (l && l.h) view.starFx[l.h] = true;
+        const id = l ? (l.p || l.h) : null;
+        if (id && nodes[id]) starBurst(id);
       }
       view.sc = s.sc || 0;
       if ((s.ph || 'play') !== view.ph) view.phAt = now;
@@ -879,6 +883,7 @@
 
     function refreshUi() {
       $('goBtn').hidden = !(isHost === true && view.ph === 'ready' && Object.keys(st.players).length > 0);
+      $('goBtn').textContent = view.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
     }
 
     const fmtTime = (ms) => {
@@ -908,13 +913,17 @@
         if (!edges[k]) edges[k] = { a: from, b: to, k: 0 };
         edges[k].k = Math.min(edges[k].k + 1, 8);
       }
-      if (view.starFx[to]) {
-        delete view.starFx[to];
-        ripples.push({ x: n.x, y: n.y, t0: now + 120, color: '#fde047' });
-        if (soundOn) { LK.audio.note(n.slot, 0.4, 1.4, 0, 1); LK.audio.note(n.slot, 0.25, 1.6, 0.12, 2); }
-      } else if (soundOn) {
-        LK.audio.note(n.slot, view.gm === 'rhythmus' ? 0.42 : 0.5, 1.5);
-      }
+      if (soundOn) LK.audio.note(n.slot, view.gm === 'rhythmus' ? 0.42 : 0.5, 1.5);
+    }
+
+    // Schatz-Licht: goldene Wellen und zwei helle Töne, wenn ein Stern eingesammelt wurde
+    function starBurst(id) {
+      const n = nodes[id];
+      if (!n) return;
+      const now = performance.now();
+      ripples.push({ x: n.x, y: n.y, t0: now, color: '#fde047' });
+      ripples.push({ x: n.x, y: n.y, t0: now + 140, color: '#fde047' });
+      if (soundOn) { LK.audio.note(n.slot, 0.4, 1.4, 0, 1); LK.audio.note(n.slot, 0.25, 1.6, 0.12, 2); }
     }
 
     function startFinaleFx(s) {
@@ -1222,7 +1231,7 @@
         ctx.fillStyle = `rgba(235,238,255,${finA})`;
         ctx.font = `600 ${Math.round(hr * 0.42)}px ${SANS}`;
         ctx.fillText(gm === 'schatz' ? 'Alle Sterne gesammelt' : 'Runde geschafft', cx, cy);
-      } else if (needsStartView() && view.ph === 'count') {
+      } else if (view.ph === 'count') {
         const left = Math.max(0, view.cd - (now - view.phAt));
         const nn = Math.max(1, Math.ceil(left / 1000));
         const frac = (left % 1000) / 1000;
@@ -1232,13 +1241,13 @@
         ctx.fillStyle = 'rgba(200,205,240,0.75)';
         ctx.font = `500 ${Math.round(hr * 0.3)}px ${SANS}`;
         ctx.fillText('Mach dich bereit', cx, cy + hr * 1.35);
-      } else if (needsStartView() && view.ph === 'ready') {
+      } else if (view.ph === 'ready') {
         ctx.fillStyle = 'rgba(235,238,255,0.9)';
         ctx.font = `600 ${Math.round(hr * (gm === 'staffel' ? 0.5 : 0.4))}px ${SANS}`;
         ctx.fillText(tm ? 'Zeitspiel' : TITLES[gm], cx, cy - hr * 0.12);
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
-        ctx.fillText(`${view.goalN || ''} Weitergaben${gm === 'staffel' ? ' pro Team' : ''}`, cx, cy + hr * 0.3);
+        ctx.fillText(`${view.goalN || ''} ${gm === 'schatz' ? 'Sterne' : 'Weitergaben'}${gm === 'staffel' ? ' pro Team' : ''}`, cx, cy + hr * 0.3);
       } else if (gm === 'schatz') {
         ctx.fillStyle = 'rgba(253,224,71,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.34)}px ${SANS}`;
@@ -1313,6 +1322,7 @@
       mark('nl', st.nl);
       mark('bpm', st.bpm);
       mark('pen', st.pen);
+      mark('nr', st.nr);
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== st.gm; });
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
@@ -1391,6 +1401,7 @@
     onSetting('nl', 'nl', (v) => parseInt(v, 10));
     onSetting('bpm', 'bpm', (v) => parseInt(v, 10));
     onSetting('pen', 'pen', (v) => parseInt(v, 10));
+    onSetting('nr', 'nr', (v) => parseInt(v, 10));
 
     // Gerät auf der Tafel antippen: Einstellungen nur für dieses Gerät
     let devId = null;

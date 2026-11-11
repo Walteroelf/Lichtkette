@@ -6,6 +6,12 @@
 //   &b=1                (optional) zweiten MQTT-Server zuerst probieren
 //   &id=abc123          (optional, zum Testen) feste Gerätekennung
 (function (LK) {
+  // ✕ oben rechts in jedem Fenster schließt es
+  document.addEventListener('click', (e) => {
+    const x = e.target.closest ? e.target.closest('.dlg-x') : null;
+    if (x && x.closest('dialog')) x.closest('dialog').close();
+  });
+
   const q = new URLSearchParams(location.search);
   let room = (q.get('r') || '').toLowerCase();
   if (!LK.validRoom(room)) room = '';
