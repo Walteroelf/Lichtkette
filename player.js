@@ -307,7 +307,8 @@
       scrMode.hidden = true;
       scrPlay.hidden = false;
       scrPlay.className = `scr mode-${mode}${useRandom() ? ' rnd' : ''}`;
-      if (useRandom()) $('hold').innerHTML = ''; else clearTarget();
+      $('hold').innerHTML = ''; // das Symbol im Punkt gehört nur zum springenden Punkt, sonst wird es riesig und schwarz
+      if (!useRandom()) clearTarget();
       $('hint').textContent = hintText();
       $('change').hidden = mode === 'blick'; // bei Augensteuerung kein kleiner Knopf, der aus Versehen ausgelöst wird
       sendHb();
@@ -358,6 +359,8 @@
       scrPlay.classList.toggle('rnd', useRandom());
       scrPlay.style.setProperty('--sz', String(eSize()));
       if (!useRandom() && !holding && $('hold').style.left) clearTarget();
+      // Wechselt die Tippfläche von "springend" auf "fest" (zum Beispiel durch die Tafel), darf kein Symbol im Knopf zurückbleiben
+      if (!useRandom() && $('hold').firstChild) $('hold').innerHTML = '';
 
       if (iHold && !holding) {
         holding = true;

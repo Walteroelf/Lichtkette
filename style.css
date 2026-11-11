@@ -225,6 +225,7 @@ label { color: var(--muted); font-size: 14px; text-align: left; }
   place-items: center;
   animation: ringBreath 1.6s ease-in-out infinite;
 }
+.scr:not(.rnd) #hold svg { display: none; } /* Sicherung: Ohne springenden Punkt gehört kein Symbol in den Tipp-Knopf */
 .rnd #hold svg { width: 52%; height: 52%; fill: var(--c); stroke: var(--c); pointer-events: none; }
 .rnd #hold.locked { opacity: 0.35; animation: none; }
 .rnd #shape { display: none; }
