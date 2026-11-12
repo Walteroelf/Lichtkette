@@ -42,9 +42,16 @@ Auf der Tafel unter ⚙ → **Spielart** wählen. Die Spielart gilt für alle Ge
 | **Lichtkette** | Ein Licht wandert zufällig. Wahlweise als Zeitspiel mit Bestzeit (siehe unten). |
 | **Staffel** | Zwei Teams (Blau und Pink), jedes mit **eigenem Licht**. Wer zuerst die Weitergaben schafft, gewinnt. Die Teams sehen oben ihren Fortschritt. Optional als **Serie** (Best of 3 oder 5, Leuchtpunkte für gewonnene Runden) und mit **Teamwahl durch die Schüler**. Vor dem Start würfelt „🎲 Teams neu würfeln“ die Teams neu (Geräte mit „Zeit zählt nicht“ werden gleichmäßig verteilt). Die Teams bleiben sonst von Runde zu Runde gleich. Hat ein Team weniger als 3 Geräte, warnt die Tafel. |
 | **Doppelte Lichter** | Zwei oder drei Lichter gleichzeitig, jedes mit eigener Farbe und Nummer. Ein Gerät hat höchstens ein Licht. Gezählt werden alle Weitergaben zusammen. |
-| **Schatz-Licht** | Bei einzelnen Geräten liegt ein **Schatz** aus 1 bis 5 Sternen (bei etwa jedem zweiten Gerät, höchstens drei Schätze). Hat ein Gerät das Licht und liegt bei ihm ein Schatz, erscheint dort **immer ein gelber Stern**. Nach dem Antippen erscheint der **nächste an anderer Stelle**, und **zum Schluss** gibt man das Licht mit seinem Symbol weiter. **Jeder Stern zählt** zum Ziel (10, 15 oder 20 Sterne, Auto: 8). Die Sterne stellst du in der Spielauswahl ein (siehe unten). Wird das Licht ohne Stern weitergegeben (zum Beispiel durch das automatische Weiterwandern), bleibt der Rest liegen. Das Licht wählt mit etwas Vorliebe Geräte mit Schatz. |
+| **Schatz-Licht** | Bei einzelnen Geräten liegt ein **Schatz** aus 1 bis 5 Sternen (bei etwa jedem zweiten Gerät, höchstens drei Schätze). Hat ein Gerät das Licht und liegt bei ihm ein Schatz, erscheint dort **immer ein gelber Stern**. Nach dem Antippen erscheint der **nächste an anderer Stelle**, und **zum Schluss** gibt man das Licht mit seinem Symbol weiter. **Jeder Stern zählt** zum Ziel (5 bis 100 Sterne in 5er-Schritten, Auto: 20). Die Sterne stellst du in der Spielauswahl ein (siehe unten). Wird das Licht ohne Stern weitergegeben (zum Beispiel durch das automatische Weiterwandern), bleibt der Rest liegen. Das Licht wählt mit etwas Vorliebe Geräte mit Schatz. |
+| **Tauziehen** | Zwei Teams mit eigenem Licht. Jede Weitergabe zieht den Punkt auf einem Seil zur **eigenen** Seite. Gewonnen hat, wer einen Vorsprung von X Schritten erreicht (Auto: 10). Kann man aufholen. Teams, Serie und Würfeln wie bei der Staffel. |
+| **Die Dunkelheit** | Alle zusammen. Ein Schatten schließt sich von den Rändern. Jede Weitergabe drängt ihn zurück. Geschafft, wenn das Ziel erreicht ist (Auto: 20), bevor er alles bedeckt. Tempo: ruhig, mittel, schnell. Er steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat oder pausiert ist. Verloren gibt es nur als „Noch einmal?“. |
+| **Muster nachspielen** | Die Tafel lässt 3 und mehr Geräte nacheinander aufleuchten. Danach tippen diese Geräte in genau dieser Reihenfolge. Bei einem Fehler läuft die Folge noch einmal ab, ohne Strafe. Jede Runde wird sie länger (bis 8). Das Ziel zählt die Runden (Auto: 6). Es braucht mindestens 2 Geräte. Kommt 30 Sekunden kein richtiger Tipp, läuft die Folge von selbst noch einmal. |
+| **Lichtbild** | Wie die Lichtkette, aber die Spuren bleiben und werden heller. Am Ende steht ein gemeinsames Bild auf der Tafel (Auto: 25 Weitergaben). Mit „💾 Bild speichern“ wird es als PNG gesichert. Es bleibt stehen, bis „Neue Runde ▶“ gedrückt wird. |
+| **Geheime Reihenfolge** | Das Licht liegt bei einem Gerät und darf nur in einer verborgenen Reihenfolge weiter. Die **anderen** Geräte raten durch Tippen, wer als Nächstes dran ist. Stimmt es, springt das Licht dorthin. Stimmt es nicht, wird das Gerät mit einem roten Kreuz markiert. Nach jedem Tipp gibt es kurz eine Pause, damit die Gruppe sich abspricht. Gewonnen, wenn die ganze Reihenfolge gefunden ist (höchstens 10 Geräte). |
 
-**Start:** Staffel und Zeitspiel beginnen mit „Los ▶“ und Countdown. Die anderen starten sofort.
+**Ziel pro Runde:** Mit **Auto**, **−5** und **+5** stellst du es in 5er-Schritten von 5 bis 100 ein (Spielauswahl, Tafel und Spielleitung).
+
+**Start:** Staffel, Tauziehen, Dunkelheit, Muster, Geheime Reihenfolge und Zeitspiel beginnen mit „Los ▶“ und Countdown. Die anderen starten sofort.
 
 **Nach einer Runde:** Standardmäßig wartet die Tafel auf den Knopf **„Neue Runde ▶“** (mit Countdown). Du kannst unter ⚙ oder in der Lehrer-Ansicht (**Nach einer Runde**) auf „geht automatisch weiter“ umstellen. Eine laufende Runde abbrechen: ⚙ → Neue Runde starten oder in der Lehrer-Ansicht „Neue Runde“.
 
@@ -64,6 +71,20 @@ Wie ein Gerät die Sterne einsammelt, stellst du pro Gerät ein (Lehrer-Ansicht 
 | **Ein Tipp reicht** | Ein Tipp gibt das Licht weiter und sammelt **alle** Sterne dieses Geräts mit ein. Der gelbe Stern erscheint trotzdem, **ohne Funktion**, mit dem Hinweis „★ ×2 wird automatisch eingesammelt“. | Ein Druck, gleiche Anzeige | Ein Klick auf den Kreis, gleiche Anzeige |
 
 Ohne Einstellung gilt: **Tippen = Stern extra antippen**, **Taster und Blick = ein Tipp reicht**. Beim Taster werden ein Dauerdruck und ein sehr schneller zweiter Druck (unter 0,3 Sekunden) nicht doppelt gezählt. Auf der Tafel steht beim Stern die Zahl der noch offenen Sterne (×2, ×3 …).
+
+### Töne, die den Spielverlauf verraten
+
+Die Tafel spielt bei den Spielarten Töne, an denen man hört, wie es steht (an der Tafel mit „Ton an/aus“ schaltbar):
+
+- **Tauziehen:** Jedes Team hat seine eigene Tonlage. Wer vorn liegt, klingt höher, wer zurückliegt, tiefer.
+- **Die Dunkelheit:** Ein tiefer Ton läuft mit. Je weiter der Schatten, desto lauter, höher und unruhiger wird er. Jede Weitergabe lässt einen hellen Funken klingen. Verloren klingt absteigend und weich.
+- **Muster nachspielen:** Jedes Gerät hat beim Aufleuchten seinen Ton. Jeder richtige Tipp klingt höher als der davor, eine geschaffte Runde ein aufsteigender Lauf, ein Fehler zwei weiche tiefe Töne (keine Strafe).
+- **Geheime Reihenfolge:** Jeder gefundene Schritt klingt höher als der davor, ein falscher Tipp klingt tief und weich.
+- **Lichtbild:** Ein Weg, der schon öfter benutzt wurde, klingt heller.
+
+### Taster und Schatz-Licht
+
+Auf der Seite zum Taster-Einrichten gibt es die Wahl **„Ein Druck sammelt alle Sterne“** (Standard) oder **„Ein Druck pro Stern“**. Das Gerät merkt sich die Wahl. Die Spielleitung kann sie pro Gerät überschreiben („Stern einsammeln“).
 
 ### Staffel: Teams und „Zeit zählt nicht“
 

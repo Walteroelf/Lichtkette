@@ -70,7 +70,7 @@
     // Staffel: Die Schüler wählen ihr Team selbst (wenn die Tafel das eingestellt hat)
     let pickTeam = '';   // 'a' | 'b' | ''
     let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
-    const pickActive = () => !!(st && Date.now() - lastStateAt < 12000 && st.gm === 'staffel' && st.tsel === 1 && st.ph === 'ready'
+    const pickActive = () => !!(st && Date.now() - lastStateAt < 12000 && LK.isTeamGm(st.gm) && st.tsel === 1 && st.ph === 'ready'
       && st.players[ID] !== undefined && cfg().tt === undefined && !st.finale);
     const curPick = () => pickTeam || (st && st.team && st.team[ID] === 1 ? 'b' : 'a');
     const starHere = () => !!(st && st.gm === 'schatz' && st.stars && st.stars.includes(ID));
@@ -99,7 +99,7 @@
       if (m.id !== ID) return;
       const s = st && st.players ? st.players[ID] : undefined;
       let col = s !== undefined ? LK.COLORS[s] : '#8b90b0';
-      if (s !== undefined && st.gm === 'staffel' && st.team && st.team[ID] !== undefined) col = LK.TEAM_COLORS[st.team[ID]];
+      if (s !== undefined && LK.isTeamGm(st.gm) && st.team && st.team[ID] !== undefined) col = LK.TEAM_COLORS[st.team[ID]];
       $('blink').style.setProperty('--bc', col);
       $('blinkShape').innerHTML = LK.shapeSvg(s !== undefined ? s : 0);
       $('blink').hidden = false;
@@ -202,6 +202,7 @@
     let swLearnedAt = 0; // Zeitpunkt, zu dem die Taste angelernt wurde (ein zweiter Druck startet das Spiel)
 
     function renderSwitch() {
+      document.querySelectorAll('[data-swstar]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.swstar === (starPref === 'tap' ? 'tap' : 'auto'))));
       $('swResult').textContent = sw.kind === 'default' ? 'Noch keine Taste gewählt. Es gelten Leertaste und Enter.' : `Erkannt: ${switchLabel(sw)}`;
       $('swResult').classList.toggle('ok', sw.kind !== 'default');
       $('swHint').textContent = sw.kind === 'key' ? 'Drücke den Taster noch einmal zum Starten, oder tippe auf „Weiter“.' : '';
@@ -251,6 +252,12 @@
       else if (v === 'tap') sw = { kind: 'tap' };
       else sw = { kind: 'key', code: v, key: '', label: b.textContent.trim() };
       swLearnedAt = 0;
+      renderSwitch();
+    }));
+    // Taster: Ein Druck für alle Sterne oder ein Druck pro Stern (die Spielleitung kann das pro Gerät überschreiben)
+    document.querySelectorAll('[data-swstar]').forEach((b) => b.addEventListener('click', () => {
+      starPref = b.dataset.swstar;
+      LK.store.set('lk_sa', starPref);
       renderSwitch();
     }));
     $('swGo').addEventListener('click', startFromSwitch);
@@ -370,22 +377,25 @@
       }
       const li = fresh ? st.lights.findIndex((l) => l.h === ID) : -1;
       const light = li >= 0 ? st.lights[li] : null;
-      const iHold = !!(fresh && slot >= 0 && light && !st.finale && st.ph === 'play');
+      // Muster nachspielen und Geheime Reihenfolge: Tippen ohne Licht (das Licht ist dort nur ein Teil des Spiels)
+      const tapGm = !!(fresh && slot >= 0 && (st.gm === 'muster' || st.gm === 'geheim'));
+      const tg = tapGame(tapGm);
+      const iHold = !tapGm && !!(fresh && slot >= 0 && light && !st.finale && st.ph === 'play');
       const isFin = !!(fresh && st.finale && slot >= 0);
       const paused = !!(iHold && (light.z || st.paused)); // Staffel: das andere Team hat Vorrang. Oder die Lehrkraft hat pausiert.
       const myTeam = fresh && st.team ? st.team[ID] : undefined;
 
       // Farbe: in der Staffel die des Teams, bei Doppelten Lichtern die des Lichts, sonst die eigene
       let col = slot >= 0 ? LK.COLORS[slot] : '#8b90b0';
-      if (slot >= 0 && st.gm === 'staffel' && myTeam !== undefined) col = LK.TEAM_COLORS[myTeam];
+      if (slot >= 0 && LK.isTeamGm(st.gm) && myTeam !== undefined) col = LK.TEAM_COLORS[myTeam];
       else if (iHold && st.gm === 'doppel') col = LK.LIGHT_COLORS[light.k % 3];
       scrPlay.style.setProperty('--c', col);
       // Vorgaben der Tafel können sich ändern: springender Punkt an/aus, Größe
-      scrPlay.classList.toggle('rnd', useRandom());
+      scrPlay.classList.toggle('rnd', useRandom() && !tapGm);
       scrPlay.style.setProperty('--sz', String(eSize()));
-      if (!useRandom() && !holding && $('hold').style.left) clearTarget();
+      if ((!useRandom() || tapGm) && !holding && $('hold').style.left) clearTarget();
       // Wechselt die Tippfläche von "springend" auf "fest" (zum Beispiel durch die Tafel), darf kein Symbol im Knopf zurückbleiben
-      if (!useRandom() && $('hold').firstChild) $('hold').innerHTML = '';
+      if ((!useRandom() || tapGm) && $('hold').firstChild) $('hold').innerHTML = '';
 
       if (iHold && !holding) {
         holding = true;
@@ -411,7 +421,7 @@
         clearTimeout(starTimer);
         updateTapVisuals();
       }
-      if (!iHold) $('hold').hidden = true;
+      if (!iHold) $('hold').hidden = !tg.target;
 
       // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, erscheint ein gelber Stern zum Antippen (immer nur einer)
       const showStar = !!(iHold && holding && starTapNeeded() && !starsDone());
@@ -432,9 +442,9 @@
         document.querySelectorAll('[data-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pick === cp)));
         $('pickHint').textContent = mode === 'taster' ? 'Jeder Druck wechselt das Team.' : 'Tippe auf dein Team.';
       }
-      scrPlay.classList.toggle('on', iHold);
+      scrPlay.classList.toggle('on', iHold || tg.on);
       scrPlay.classList.toggle('fin', isFin);
-      $('hold').classList.toggle('locked', iHold && (performance.now() < lockUntil || paused));
+      $('hold').classList.toggle('locked', (iHold && (performance.now() < lockUntil || paused)) || (tg.target && tg.locked));
 
       const online = net.connected;
       $('conn').className = `dot ${online ? (fresh ? 'ok' : 'warn') : 'bad'}`;
@@ -443,11 +453,12 @@
       if (!online) msg = 'Keine Verbindung …';
       else if (!fresh) msg = 'Warte auf die Tafel …';
       else if (slot < 0) msg = 'Verbinde …';
-      else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? (st.sd ? 'Dein Team gewinnt die Serie!' : 'Dein Team gewinnt!') : 'Geschafft! Gut gespielt') : 'Geschafft!';
+      else if (isFin) msg = (LK.isTeamGm(st.gm) && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? (st.sd ? 'Dein Team gewinnt die Serie!' : 'Dein Team gewinnt!') : 'Geschafft! Gut gespielt') : (st.lost ? 'Fast geschafft! Gleich noch einmal' : 'Geschafft!');
       else if (st.paused) msg = 'Pause';
       else if (performance.now() < flashUntil) msg = flashMsg;
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
+      else if (tg.msg) msg = tg.msg;
       else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
@@ -457,14 +468,15 @@
 
       // Kleine Zeile oben: Team, Licht-Nummer, Stern
       const bits = [];
-      if (fresh && st.gm === 'staffel' && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
+      if (fresh && LK.isTeamGm(st.gm) && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
       if (iHold && st.gm === 'doppel') bits.push(`Licht ${light.k + 1}`);
       if (fresh && st.gm === 'schatz' && st.stars && st.stars.includes(ID)) bits.push('★ Hier liegt ein Stern');
       $('tag').textContent = bits.join(' · ');
 
       let frac = 0;
       if (fresh && st.goal) {
-        if (st.gm === 'staffel') frac = myTeam !== undefined ? (st.tc[myTeam] || 0) / st.goal : 0;
+        if (st.gm === 'zieh') frac = myTeam !== undefined ? Math.max(0, Math.min(1, 0.5 + ((st.tc[myTeam] || 0) - (st.tc[1 - myTeam] || 0)) / (2 * st.goal))) : 0;
+        else if (LK.isTeamGm(st.gm)) frac = myTeam !== undefined ? (st.tc[myTeam] || 0) / st.goal : 0;
         else if (st.gm === 'schatz') frac = (st.sc || 0) / st.goal;
         else frac = st.chain / st.goal;
       }
@@ -482,7 +494,46 @@
 
     // ---------- Das Licht weitergeben ----------
     // Licht-Fläche getippt (oder Taster gedrückt, oder Kreis angeschaut)
+    // Was ein Gerät in Muster nachspielen und Geheime Reihenfolge sieht und tun kann
+    function tapGame(tapGm) {
+      const r = { on: false, target: false, msg: '', locked: false };
+      if (!tapGm || !st || st.finale || st.ph !== 'play' || st.paused) return r;
+      if (st.gm === 'muster') {
+        const mu = st.mu;
+        if (!mu) return r;
+        const inSq = mu.sq.includes(ID);
+        if (mu.ph === 'wait') r.msg = 'Es braucht mindestens zwei Geräte';
+        else if (mu.ph === 'show') { r.on = mu.cur === ID; r.msg = r.on ? 'Das bist du!' : (mu.ag ? 'Noch mal ansehen' : 'Schau auf die Tafel und merk dir die Reihenfolge'); }
+        else if (mu.ph === 'go') { r.target = inSq; r.msg = inSq ? 'Tippe, wenn du dran bist' : 'Diesmal bist du nicht dabei'; }
+        else if (mu.ph === 'next') r.msg = 'Richtig!';
+        else if (mu.ph === 'again') r.msg = 'Nicht ganz. Gleich noch einmal';
+      } else {
+        const ge = st.ge;
+        const l = st.lights[0];
+        if (!ge || !l || !l.h) return r;
+        if (l.h === ID) { r.on = true; r.msg = 'Du hast das Licht. Die anderen suchen den Nächsten.'; }
+        else if (ge.ex && ge.ex.includes(ID)) r.msg = 'Du bist es nicht. Warte auf den nächsten Schritt.';
+        else { r.target = true; r.locked = !!ge.lk; r.msg = ge.lk ? 'Warte kurz …' : 'Bist du der Nächste? Dann tippe!'; }
+      }
+      return r;
+    }
+
+    let lastTapSent = 0;
+    function tapAnywhere() {
+      if (!st || Date.now() - lastStateAt > 12000) return;
+      const tg = tapGame(slot >= 0);
+      if (!tg.target || tg.locked || performance.now() - lastTapSent < 400) return;
+      lastTapSent = performance.now();
+      net.send('tap', { id: ID, epoch: st.epoch });
+      if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* nicht überall erlaubt */ } }
+      flashMsg = 'Getippt ✓';
+      flashUntil = performance.now() + 700;
+      render();
+      setTimeout(render, 760);
+    }
+
     function confirm() {
+      if (st && (st.gm === 'muster' || st.gm === 'geheim')) { tapAnywhere(); return; }
       if (!holding || performance.now() < lockUntil || !st) return;
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
@@ -665,7 +716,7 @@
     // ein Tipp im falschen Moment (kein Licht da) oder neben den Punkt bzw. Kreis
     scrPlay.addEventListener('pointerdown', (e) => {
       if (!active || !eMiss() || mode === 'taster' || !st) return;
-      if (st.gm !== 'staffel' || st.ph !== 'play' || st.finale || st.paused || !st.pen) return;
+      if (!LK.isTeamGm(st.gm) || st.ph !== 'play' || st.finale || st.paused || !st.pen) return;
       if (e.target.closest('button')) return; // Treffer oder Bedienknopf
       const now = performance.now();
       if (holding && now < lockUntil) return;  // gerade erst Licht bekommen

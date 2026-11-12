@@ -14,22 +14,33 @@
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   const FINALE_MS = 5200;
   const GONE_MS = 9000; // so lange ohne Lebenszeichen, dann fliegt ein Gerät aus dem Spiel
-  const GN_OPTIONS = [0, 10, 15, 20]; // 0 = automatisch
+  // Ziel pro Runde: 0 = automatisch, sonst 5 bis 100 in 5er-Schritten
+  const validGn = (v) => v === 0 || (Number.isInteger(v) && v >= 5 && v <= 100 && v % 5 === 0);
   const NL_OPTIONS = [2, 3];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
-  const GAMES = ['klassik', 'staffel', 'doppel', 'schatz'];
-  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const GAMES = ['klassik', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim'];
+  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
     klassik: 'Ein Licht wandert zufällig von Gerät zu Gerät. Wahlweise als Zeitspiel mit Bestzeit.',
     staffel: 'Zwei Teams, jedes mit eigenem Licht. Wer zuerst die Weitergaben schafft, gewinnt.',
     doppel: 'Zwei oder drei Lichter gleichzeitig. Jedes Gerät hat höchstens ein Licht.',
     schatz: 'Das Licht sammelt Sterne ein, die bei einzelnen Geräten liegen.',
+    zieh: 'Zwei Teams ziehen an einem Seil. Jede Weitergabe zieht den Punkt zur eigenen Seite.',
+    dunkel: 'Ein Schatten wächst. Jede Weitergabe drängt ihn zurück. Alle zusammen gegen die Dunkelheit.',
+    muster: 'Die Tafel zeigt eine Reihenfolge von Geräten. Die Gruppe spielt sie nach. Jede Runde wird sie länger.',
+    bild: 'Jede Weitergabe zieht eine Lichtlinie. Am Ende steht ein gemeinsames Bild, das man speichern kann.',
+    geheim: 'Das Licht geht in einer geheimen Reihenfolge weiter. Die Gruppe findet heraus, wer als Nächstes dran ist.',
   };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
     staffel: 'Weitergaben pro Team',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
+    zieh: 'Schritte Vorsprung zum Sieg',
+    dunkel: 'Weitergaben bis zum Sieg',
+    muster: 'Runden bis zum Sieg',
+    bild: 'Weitergaben pro Bild',
+    geheim: 'Stationen (höchstens so viele wie Geräte)',
   };
   const SANS = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -52,6 +63,16 @@
     let finTimer = null;
     let cdTimer = null;
     let decideTimer = null;
+    // Neue Spielarten: Dunkelheit (dk*), Muster (mu*), Geheime Reihenfolge (ge*)
+    const DK_RATE = [0, 1 / 60, 1 / 40, 1 / 25]; // Dunkelheit wächst pro Sekunde: ruhig, mittel, schnell
+    const DK_PUSH = 0.12; // so viel drängt jede Weitergabe sie zurück
+    let dkStamp = 0;
+    let dkTimer = null;
+    let muTimer = null;
+    let muIdle = null;
+    let geLockT = null;
+    let geRoute = [];
+    const lastTapAt = {};
     let token = 0;
     const penUntil = [0, 0]; // Staffel: bis wann das Licht des Teams wegen eines Fehltipps pausiert
     // Vorgaben der Tafel pro Gerät (überstimmen die Einstellung am Gerät). Fehlt ein Wert, entscheidet das Gerät selbst.
@@ -82,7 +103,8 @@
       // tsel = 1: Schüler wählen ihr Team selbst, sk = Zähler für "Teams neu würfeln"
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
-      gn: readNum('lk_gn', GN_OPTIONS, 0), nl: readNum('lk_nl', NL_OPTIONS, 2),
+      gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
+      dkv: readNum('lk_dkv', [1, 2, 3], 2), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -97,12 +119,12 @@
     // Bestzeit gilt nur für gleich viele Weitergaben UND gleich viele Geräte, sonst ist sie nicht vergleichbar
     const bestFor = (goal, n) => parseInt(LK.store.get(`lk_best_${goal}_${n}`, '0'), 10) || 0;
 
-    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'star', 'host', 'state', 'tcmd']);
+    const net = new LK.Net(room, startBroker, ['hb', 'act', 'miss', 'star', 'tap', 'host', 'state', 'tcmd']);
 
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
     const isTm = () => st.tm === 1 && st.gm === 'klassik';
-    const needsStart = () => isTm() || st.gm === 'staffel';
+    const needsStart = () => isTm() || LK.isTeamGm(st.gm) || ['dunkel', 'muster', 'geheim'].includes(st.gm);
     const isNt = (id) => !!(peers[id] && peers[id].nt);
 
     function freeSlot(id) {
@@ -144,7 +166,7 @@
 
     // Teams neu würfeln (nur vor dem Start): Geräte mit "Zeit zählt nicht" werden gleichmäßig verteilt, feste Teams bleiben
     function shakeTeams() {
-      if (isHost !== true || st.gm !== 'staffel' || st.ph !== 'ready') return;
+      if (isHost !== true || !LK.isTeamGm(st.gm) || st.ph !== 'ready') return;
       st.sk = (st.sk || 0) + 1;
       Object.keys(peers).forEach((k) => { peers[k].tp = ''; });
       st.team = {};
@@ -178,7 +200,7 @@
       if (s < 0) return false;
       st.players[id] = s;
       slotMem[id] = s;
-      if (st.gm === 'staffel') assignTeam(id);
+      if (LK.isTeamGm(st.gm)) assignTeam(id);
       return true;
     }
 
@@ -187,10 +209,14 @@
       delete st.team[id];
       Object.keys(bags).forEach((k) => { bags[k] = bags[k].filter((x) => x !== id); });
       st.stars = st.stars.filter((x) => x !== id);
+      if (st.ph === 'play' && !st.finale) {
+        if (st.gm === 'muster' && st.mu && st.mu.sq.includes(id)) muStart(st.mu.lv, false);
+        if (st.gm === 'geheim' && geRoute.includes(id)) geBegin();
+      }
     }
 
     function poolIds(li) {
-      return st.gm === 'staffel' ? aliveIds().filter((id) => st.team[id] === li) : aliveIds();
+      return LK.isTeamGm(st.gm) ? aliveIds().filter((id) => st.team[id] === li) : aliveIds();
     }
 
     // Wer bekommt Licht li als Nächstes? Zufällig, aber fair: jeder kommt einmal dran, bevor die Reihe von vorn beginnt.
@@ -202,7 +228,7 @@
       const free = pool.filter((id) => !busy.has(id));
       let cand = free.filter((id) => id !== l.h);
       if (!cand.length) cand = free.length ? free : pool; // allein im Team oder Spiel: das Licht bleibt beim selben Gerät
-      const key = st.gm === 'staffel' ? `t${li}` : 'all';
+      const key = LK.isTeamGm(st.gm) ? `t${li}` : 'all';
       let bag = (bags[key] || []).filter((id) => pool.includes(id));
       let c = bag.filter((id) => cand.includes(id));
       if (!c.length) { bag = pool.slice(); c = bag.filter((id) => cand.includes(id)); if (!c.length) c = cand; }
@@ -227,7 +253,8 @@
     }
 
     function desiredLights() {
-      if (st.gm === 'staffel') return 2;
+      if (LK.isTeamGm(st.gm)) return 2;
+      if (st.gm === 'muster') return 0;
       if (st.gm === 'doppel') return Math.max(1, Math.min(st.nl, aliveIds().length - 1));
       return 1;
     }
@@ -245,7 +272,7 @@
       l.r = 0;
       if (st.gm === 'schatz' && next && st.stars.includes(next)) { l.n = starsPerTreasure(); l.r = l.n; }
       clearTimeout(autoTimers[li]);
-      if (next && !isTm() && st.gm !== 'staffel' && !st.paused) {
+      if (next && !isTm() && !LK.isTeamGm(st.gm) && st.gm !== 'geheim' && !st.paused) {
         const w = (peers[next] && peers[next].w) || 0;
         if (w > 0) {
           l.a = w * 1000;
@@ -266,7 +293,7 @@
       while (st.lights.length < D) st.lights.push({ h: null, p: null, k: st.lights.length, s: ++token, a: 0, z: false, n: 0, r: 0 });
       st.lights.forEach((l, i) => {
         if (l.h && st.players[l.h] === undefined) { l.p = l.h; l.h = null; }
-        if (!l.h) { const n = pickFor(i); if (n) setLight(i, n); }
+        if (!l.h && st.gm !== 'geheim') { const n = pickFor(i); if (n) setLight(i, n); }
       });
       st.seq++;
       updateClockRun();
@@ -320,7 +347,7 @@
       const l = st.lights[li];
       if (!l || !l.h || l.z) return;
       st.chain++;
-      if (st.gm === 'staffel') st.tc[li]++;
+      if (LK.isTeamGm(st.gm)) st.tc[li]++;
       // Schatz-Licht, "ein Tipp reicht": Beim Weitergeben werden alle noch offenen Sterne dieses Geräts eingesammelt.
       // Wer die Sterne einzeln antippt, hat sie schon vorher gemeldet. Läuft nur die Zeit ab, bleibt der Rest liegen.
       if (st.gm === 'schatz' && collect && l.r > 0) {
@@ -328,8 +355,11 @@
         l.r = 0;
         collectStar(l.h);
       }
-      if (st.gm === 'staffel' ? st.tc[li] >= st.goal : (st.gm === 'schatz' ? st.sc >= st.goal : st.chain >= st.goal)) { startFinale(li); return; }
+      const done = st.gm === 'zieh' ? Math.abs(st.tc[0] - st.tc[1]) >= st.goal
+        : (LK.isTeamGm(st.gm) ? st.tc[li] >= st.goal : (st.gm === 'schatz' ? st.sc >= st.goal : st.chain >= st.goal));
+      if (done) { startFinale(li); return; }
       setLight(li, pickFor(li));
+      if (st.gm === 'dunkel') dkSet(Math.max(0, dkLevel() - DK_PUSH), dkRate()); // jede Weitergabe drängt den Schatten zurück
       publish();
     }
 
@@ -339,8 +369,162 @@
         case 'klassik': return isTm() ? 10 : Math.max(8, aliveIds().length * 3);
         case 'doppel': return 12;
         case 'staffel': return 12;
-        default: return 8; // schatz: Sterne
+        case 'zieh': return 10;
+        case 'dunkel': return 20;
+        case 'muster': return 6;
+        case 'bild': return 25;
+        case 'geheim': return Math.max(3, Math.min(aliveIds().length, 8));
+        default: return 20; // schatz: Sterne
       }
+    }
+
+    // ================= Neue Spielarten =================
+    // Die Dunkelheit: ein gemeinsamer Schatten, der langsam wächst. Er steht still, solange ein Gerät mit "Zeit zählt nicht" das Licht hat.
+    function dkRate() {
+      const l = st.lights[0];
+      if (st.gm !== 'dunkel' || st.ph !== 'play' || st.finale || finishing || st.paused || !l || !l.h || l.z || isNt(l.h)) return 0;
+      return DK_RATE[st.dkv] || DK_RATE[2];
+    }
+    const dkLevel = () => Math.min(1, Math.max(0, st.dk + st.dkr * ((Date.now() - dkStamp) / 1000)));
+    function dkSet(level, rate) { st.dk = level; st.dkr = rate; dkStamp = Date.now(); }
+    function dkTick() {
+      if (isHost !== true || st.gm !== 'dunkel' || st.ph !== 'play' || st.finale || finishing) return;
+      const lvl = dkLevel();
+      if (lvl >= 1) { dkSet(1, 0); startFinale(-1, true); return; }
+      const r = dkRate();
+      if (r !== st.dkr) { dkSet(lvl, r); publish(); }
+    }
+
+    // Muster nachspielen: Die Tafel lässt Geräte nacheinander aufleuchten, die Gruppe tippt sie in dieser Reihenfolge nach.
+    function muBuild(lv) {
+      const ids = aliveIds();
+      const sq = [];
+      for (let i = 0; i < Math.min(8, 2 + lv); i++) {
+        const cand = ids.filter((id) => id !== sq[i - 1]);
+        sq.push(cand[Math.floor(Math.random() * cand.length)]);
+      }
+      return sq;
+    }
+    function muStart(lv, again) {
+      clearTimeout(muTimer);
+      clearTimeout(muIdle);
+      if (isHost !== true || st.gm !== 'muster') return;
+      const old = st.mu || {};
+      const keep = !!(again && old.sq && old.sq.length && old.sq.every((id) => st.players[id] !== undefined));
+      if (aliveIds().length < 2) {
+        st.mu = { ph: 'wait', sq: [], i: 0, cur: null, fk: old.fk || 0, tk: old.tk || 0, tl: null, bad: old.bad || 0, bl: null, lv, ag: 0 };
+        publish();
+        return;
+      }
+      st.mu = { ph: 'show', sq: keep ? old.sq : muBuild(lv), i: 0, cur: null, fk: old.fk || 0, tk: old.tk || 0, tl: null, bad: old.bad || 0, bl: old.bl || null, lv, ag: keep ? 1 : 0 };
+      st.seq++;
+      publish();
+      muTimer = setTimeout(() => muShow(0), 1200);
+    }
+    function muShow(k) {
+      const mu = st.mu;
+      if (isHost !== true || st.gm !== 'muster' || !mu || st.finale) return;
+      if (st.paused) { muTimer = setTimeout(() => muShow(k), 500); return; }
+      if (k >= mu.sq.length) { mu.cur = null; mu.ph = 'go'; mu.i = 0; publish(); muArmIdle(); return; }
+      mu.cur = mu.sq[k];
+      mu.fk++;
+      publish();
+      muTimer = setTimeout(() => {
+        if (st.mu !== mu) return;
+        mu.cur = null;
+        publish();
+        muTimer = setTimeout(() => muShow(k + 1), 350);
+      }, 850);
+    }
+    function muArmIdle() {
+      clearTimeout(muIdle);
+      // Kommt lange kein richtiger Tipp, läuft die Folge noch einmal ab
+      muIdle = setTimeout(() => { if (isHost === true && st.gm === 'muster' && st.mu && st.mu.ph === 'go' && !st.finale) muStart(st.mu.lv, true); }, 30000);
+    }
+    function muTap(id) {
+      const mu = st.mu;
+      if (!mu || mu.ph !== 'go') return;
+      if (id === mu.sq[mu.i]) {
+        mu.i++;
+        mu.tk++;
+        mu.tl = id;
+        if (mu.i >= mu.sq.length) {
+          mu.ph = 'next';
+          st.chain++;
+          clearTimeout(muIdle);
+          if (st.chain >= st.goal) { startFinale(-1); return; }
+          publish();
+          muTimer = setTimeout(() => muStart(mu.lv + 1, false), 2000);
+          return;
+        }
+        publish();
+        muArmIdle();
+      } else {
+        // Falsche Reihenfolge: ohne Strafe, die Folge läuft noch einmal ab
+        mu.bad++;
+        mu.bl = id;
+        mu.ph = 'again';
+        clearTimeout(muIdle);
+        publish();
+        muTimer = setTimeout(() => muStart(mu.lv, true), 1800);
+      }
+    }
+
+    // Geheime Reihenfolge: Das Licht darf nur in einer verborgenen Reihenfolge weiter. Die anderen Geräte raten, wer als Nächstes dran ist.
+    function geLock(ms) {
+      const ge = st.ge;
+      ge.lk = 1;
+      clearTimeout(geLockT);
+      geLockT = setTimeout(() => { if (st.ge === ge) { ge.lk = 0; publish(); } }, ms);
+    }
+    function geBegin() {
+      clearTimeout(geLockT);
+      const ids = aliveIds();
+      st.chain = 0;
+      const old = st.ge || {};
+      if (ids.length < 2) { geRoute = []; st.ge = { i: 0, ex: [], lk: 0, bad: null, bk: old.bk || 0, n: 0 }; st.goal = 1; return; }
+      const route = ids.slice();
+      for (let i = route.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [route[i], route[j]] = [route[j], route[i]]; }
+      geRoute = route.slice(0, Math.max(2, Math.min(st.gn || computeGoal(), ids.length, 10)));
+      st.ge = { i: 0, ex: [], lk: 0, bad: null, bk: old.bk || 0, n: geRoute.length };
+      st.goal = geRoute.length - 1;
+      if (!st.lights.length) ensureLights();
+      if (st.lights[0]) setLight(0, geRoute[0]);
+    }
+    function geTap(id) {
+      const ge = st.ge;
+      const l = st.lights[0];
+      if (!ge || !l || !l.h || ge.lk || id === l.h || ge.ex.includes(id) || geRoute.length < 2) return;
+      if (id === geRoute[ge.i + 1]) {
+        ge.i++;
+        ge.ex = [];
+        st.chain++;
+        setLight(0, id);
+        if (ge.i >= geRoute.length - 1) { startFinale(-1); return; }
+        geLock(1000);
+      } else {
+        ge.ex.push(id);
+        ge.bad = id;
+        ge.bk++;
+        geLock(1800);
+      }
+      publish();
+    }
+
+    // Ein Gerät tippt (Muster nachspielen, Geheime Reihenfolge)
+    function onTap(m) {
+      if (isHost !== true || typeof m.id !== 'string' || st.ph !== 'play' || st.finale || finishing || st.paused) return;
+      if (m.epoch !== st.epoch || st.players[m.id] === undefined) return;
+      const now = Date.now();
+      if (lastTapAt[m.id] && now - lastTapAt[m.id] < 500) return; // Prellen und Doppeltipp zählen nicht
+      lastTapAt[m.id] = now;
+      if (st.gm === 'muster') muTap(m.id);
+      else if (st.gm === 'geheim') geTap(m.id);
+    }
+    function gameEnsure() {
+      if (st.ph !== 'play' || st.finale) return;
+      if (st.gm === 'muster' && (!st.mu || st.mu.ph === 'wait')) muStart(st.mu ? st.mu.lv : 1, false);
+      if (st.gm === 'geheim' && geRoute.length < 2) geBegin();
     }
 
     // Neue Runde. Wo es nötig ist, wartet sie auf "Los", sonst geht das Spiel gleich los.
@@ -358,6 +542,16 @@
       st.chain = 0;
       st.tc = [0, 0];
       st.win = -1;
+      st.lost = 0;
+      clearInterval(dkTimer);
+      clearTimeout(muTimer);
+      clearTimeout(muIdle);
+      clearTimeout(geLockT);
+      st.dk = 0;
+      st.dkr = 0;
+      st.mu = null;
+      st.ge = null;
+      geRoute = [];
       if (st.sd || (!afterFinale && !keepSeries)) { st.sw = [0, 0]; st.sd = 0; }
       st.sc = 0;
       st.stars = [];
@@ -369,7 +563,7 @@
       st.rec = 0;
       st.cd = 0;
       bags = {};
-      if (st.gm === 'staffel') assignAllTeams(); else st.team = {};
+      if (LK.isTeamGm(st.gm)) assignAllTeams(); else st.team = {};
       st.ph = (needsStart() || (afterFinale && st.nr === 1)) ? 'ready' : 'play';
       st.n = aliveIds().length;
       st.best = isTm() ? bestFor(st.goal, st.n) : 0;
@@ -382,12 +576,15 @@
       st.lights = [];
       ensureLights();
       ensureStars();
+      if (st.gm === 'dunkel') { dkSet(0.12, dkRate()); clearInterval(dkTimer); dkTimer = setInterval(dkTick, 250); }
+      if (st.gm === 'muster') muStart(1, false);
+      if (st.gm === 'geheim') geBegin();
       updateClockRun();
     }
 
     function startCountdown() {
       if (isHost !== true || st.ph !== 'ready' || !aliveIds().length) return;
-      if (st.gm === 'staffel') assignAllTeams();
+      if (LK.isTeamGm(st.gm)) assignAllTeams();
       st.ph = 'count';
       st.cd = 3000;
       st.n = aliveIds().length; // ab jetzt zählt diese Geräteanzahl für die Bestzeit
@@ -411,6 +608,7 @@
       LK.store.set('lk_gm', st.gm);
       LK.store.set('lk_tm', String(st.tm));
       LK.store.set('lk_gn', String(st.gn));
+      LK.store.set('lk_dkv', String(st.dkv));
       LK.store.set('lk_nl', String(st.nl));
       LK.store.set('lk_pen', String(st.pen));
       LK.store.set('lk_nr', String(st.nr));
@@ -422,13 +620,19 @@
       publish();
     }
 
-    function startFinale(win) {
+    function startFinale(win, lost) {
       rollClock();
       clearTimeout(finTimer);
+      clearInterval(dkTimer);
+      clearTimeout(muTimer);
+      clearTimeout(muIdle);
+      clearTimeout(geLockT);
+      if (st.gm === 'dunkel') dkSet(dkLevel(), 0);
+      st.lost = lost ? 1 : 0;
       finishing = false;
       st.finale = true;
-      st.win = st.gm === 'staffel' ? win : -1;
-      if (st.gm === 'staffel' && win >= 0 && st.ser > 0) {
+      st.win = LK.isTeamGm(st.gm) ? win : -1;
+      if (LK.isTeamGm(st.gm) && win >= 0 && st.ser > 0) {
         st.sw[win]++;
         if (st.sw[win] >= st.ser) st.sd = 1;
       }
@@ -447,7 +651,7 @@
         if (isHost !== true) return;
         resetRound(true, true);
         publish();
-      }, st.sd ? 11000 : ((isTm() || st.gm === 'staffel') ? 8000 : FINALE_MS));
+      }, st.gm === 'bild' ? 90000 : (st.sd ? 11000 : ((isTm() || LK.isTeamGm(st.gm)) ? 8000 : FINALE_MS)));
     }
 
     // Staffel: Hat ein Gerät mit "Zeit zählt nicht" das Licht, wartet das andere Team, bis es weitergegeben hat.
@@ -455,15 +659,15 @@
       const now = Date.now();
       st.lights.forEach((l, i) => {
         const o = st.lights[1 - i];
-        const wait = !!(st.gm === 'staffel' && st.lights.length === 2 && l.h && o && o.h && isNt(o.h) && !isNt(l.h));
-        l.pn = !!(st.gm === 'staffel' && l.h && penUntil[i] > now); // Strafpause nach einem Fehltipp im eigenen Team
+        const wait = !!(LK.isTeamGm(st.gm) && st.lights.length === 2 && l.h && o && o.h && isNt(o.h) && !isNt(l.h));
+        l.pn = !!(LK.isTeamGm(st.gm) && l.h && penUntil[i] > now); // Strafpause nach einem Fehltipp im eigenen Team
         l.z = wait || l.pn;
       });
     }
 
     // Fehltipp eines Geräts (nur Staffel, nur wenn die Tafel Strafzeit eingeschaltet hat und das Gerät mitmacht)
     function onMiss(id) {
-      if (st.gm !== 'staffel' || st.ph !== 'play' || st.finale || finishing || !st.pen) return;
+      if (!LK.isTeamGm(st.gm) || st.ph !== 'play' || st.finale || finishing || !st.pen) return;
       if (!peers[id] || !peers[id].pn) return;
       const team = st.team[id];
       if (team === undefined || penUntil[team] > Date.now()) return;
@@ -505,7 +709,7 @@
       if (value === null || value === undefined) delete c[key]; else c[key] = value;
       if (Object.keys(c).length) cfgAll[id] = c; else delete cfgAll[id];
       saveCfg();
-      if (key === 'tt' && st.gm === 'staffel' && st.ph !== 'play' && peers[id]) {
+      if (key === 'tt' && LK.isTeamGm(st.gm) && st.ph !== 'play' && peers[id]) {
         // Teamwechsel nur vor dem Start einer Runde
         if (value === null) peers[id].tt = '';
         applyPeerCfg(id);
@@ -520,7 +724,7 @@
     // ---- Pause ----
     function rearmAuto(li) {
       const l = st.lights[li];
-      if (!l || !l.h || isTm() || st.gm === 'staffel') return;
+      if (!l || !l.h || isTm() || LK.isTeamGm(st.gm) || st.gm === 'geheim') return;
       const w = (peers[l.h] && peers[l.h].w) || 0;
       if (w <= 0) return;
       l.a = w * 1000;
@@ -577,7 +781,7 @@
     function privSnapshot() {
       const now = Date.now();
       return {
-        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
+        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, dkv: st.dkv, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
         ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
@@ -631,7 +835,8 @@
           const patch = {};
           if (GAMES.includes(p.gm)) patch.gm = p.gm;
           if (p.tm === 0 || p.tm === 1) patch.tm = p.tm;
-          if (GN_OPTIONS.includes(p.gn)) patch.gn = p.gn;
+          if (validGn(p.gn)) patch.gn = p.gn;
+          if ([1, 2, 3].includes(p.dkv)) patch.dkv = p.dkv;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
           if (p.nr === 0 || p.nr === 1) patch.nr = p.nr;
@@ -724,11 +929,11 @@
       if (isHost !== true) return;
       const added = addPlayer(m.id);
       let changed = added;
-      if (st.gm === 'staffel' && !added && st.players[m.id] !== undefined && st.ph === 'ready') {
+      if (LK.isTeamGm(st.gm) && !added && st.players[m.id] !== undefined && st.ph === 'ready') {
         const pt = teamPref(m.id);
         if (pt >= 0 && st.team[m.id] !== pt) { st.team[m.id] = pt; teamMem[m.id] = pt; changed = true; }
       }
-      if (added) { ensureLights(); ensureStars(); }
+      if (added) { ensureLights(); ensureStars(); gameEnsure(); }
       if (changed || !prev || now - prev.last > 6000) publish();
     });
 
@@ -743,6 +948,8 @@
       }
       reqPass(li, m.k === 1);
     });
+
+    net.on('tap', onTap);
 
     net.on('miss', (m) => {
       if (isHost === true && typeof m.id === 'string' && m.epoch === st.epoch) onMiss(m.id);
@@ -816,6 +1023,7 @@
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
       ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1, ser: 0, sw: [0, 0], sd: 0, tsel: 0,
       stars: [], sc: 0, team: {}, paused: false,
+      lost: 0, dk: 0, dkr: 0, dkAt: 0, mu: null, ge: null, zp: 0,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -836,8 +1044,8 @@
       const cx = W / 2;
       const cy = H / 2;
       const rx = W * 0.36;
-      const ry = H * (view.tm || view.gm === 'staffel' ? 0.3 : 0.33); // Platz für Uhr bzw. Fortschrittsbalken oben
-      if (view.gm === 'staffel') {
+      const ry = H * (view.tm || LK.isTeamGm(view.gm) ? 0.3 : 0.33); // Platz für Uhr bzw. Fortschrittsbalken oben
+      if (LK.isTeamGm(view.gm)) {
         // Team Blau links, Team Pink rechts
         const teams = [[], []];
         ids.forEach((id) => teams[nodes[id].team || 0].push(id));
@@ -862,7 +1070,7 @@
       });
     }
 
-    const nodeColor = (id, slot, team) => (view.gm === 'staffel' ? LK.TEAM_COLORS[team[id] || 0] : LK.COLORS[slot]);
+    const nodeColor = (id, slot, team) => (LK.isTeamGm(view.gm) ? LK.TEAM_COLORS[team[id] || 0] : LK.COLORS[slot]);
 
     function syncNodes(players, team) {
       const now = performance.now();
@@ -929,6 +1137,27 @@
       view.sw = s.sw || [0, 0];
       view.sd = s.sd || 0;
       view.tsel = s.tsel || 0;
+      view.lost = s.lost || 0;
+      view.dk = s.dk || 0;
+      view.dkr = s.dkr || 0;
+      view.dkAt = now;
+      // Muster nachspielen und Geheime Reihenfolge: Aufleuchten, richtige und falsche Tipps zeigen
+      const pmu = view.mu;
+      const pge = view.ge;
+      view.mu = s.mu || null;
+      view.ge = s.ge || null;
+      if (!first) {
+        if (view.mu && pmu) {
+          if (view.mu.cur && pmu.fk !== view.mu.fk) flashNode(view.mu.cur, false);
+          if (view.mu.tl && pmu.tk !== view.mu.tk) {
+            flashNode(view.mu.tl, false, true);
+            if (soundOn) LK.audio.chime(Math.max(0, view.mu.i - 1)); // jeder richtige Tipp klingt höher
+          }
+          if (view.mu.ph === 'next' && pmu.ph !== 'next' && soundOn) LK.audio.arp();
+          if (view.mu.bl && pmu.bad !== view.mu.bad) flashNode(view.mu.bl, true);
+        }
+        if (view.ge && pge && view.ge.bad && pge.bk !== view.ge.bk) flashNode(view.ge.bad, true);
+      }
       view.stars = s.stars || [];
       if (s.sc > view.sc && !first) {
         // Stern eingesammelt: Funkeln bei dem Gerät, das ihn angetippt hat (das Licht war gerade dort)
@@ -952,14 +1181,16 @@
       view.cd = s.cd || 0;
       view.goalN = s.goal;
       view.paused = !!s.paused;
-      view.finDur = (s.tm && s.gm === 'klassik') || s.gm === 'staffel' ? 8000 : FINALE_MS;
+      view.finDur = (s.tm && s.gm === 'klassik') || LK.isTeamGm(s.gm) || s.gm === 'bild' ? 8000 : FINALE_MS;
       refreshUi();
     }
 
     function refreshUi() {
-      $('goBtn').hidden = !(isHost === true && view.ph === 'ready' && Object.keys(st.players).length > 0);
-      $('shakeBtn').hidden = !(isHost === true && view.ph === 'ready' && view.gm === 'staffel' && Object.keys(st.players).length > 0);
-      $('goBtn').textContent = view.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
+      const bildFin = view.gm === 'bild' && view.finale;
+      $('goBtn').hidden = !(isHost === true && (view.ph === 'ready' || bildFin) && Object.keys(st.players).length > 0);
+      $('saveBtn').hidden = !(view.gm === 'bild' && view.chain > 0);
+      $('shakeBtn').hidden = !(isHost === true && view.ph === 'ready' && LK.isTeamGm(view.gm) && Object.keys(st.players).length > 0);
+      $('goBtn').textContent = (view.round > 1 || bildFin) ? 'Neue Runde ▶' : 'Los ▶';
     }
 
     const fmtTime = (ms) => {
@@ -968,6 +1199,19 @@
       const s = Math.floor((t % 600) / 10);
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${t % 10}`;
     };
+
+    // Kurzes Aufleuchten bei einem Gerät. bad = falscher Tipp (rote Welle, kein Ton)
+    // silent: nur das Bild, der Ton kommt von woanders
+    function flashNode(id, bad, silent) {
+      const n = nodes[id];
+      if (!n) return;
+      const now = performance.now();
+      n.pop = now;
+      ripples.push({ x: n.x, y: n.y, t0: now, color: bad ? '#fb7185' : n.col });
+      if (!soundOn) return;
+      if (bad) LK.audio.thud();
+      else if (!silent) LK.audio.note(n.slot, 0.45, 1.2);
+    }
 
     function startPulse(li, from, to) {
       view.vis[li] = null;
@@ -987,9 +1231,22 @@
       if (from) {
         const k = edgeKey(from, to);
         if (!edges[k]) edges[k] = { a: from, b: to, k: 0 };
-        edges[k].k = Math.min(edges[k].k + 1, 8);
+        edges[k].k = Math.min(edges[k].k + 1, view.gm === 'bild' ? 16 : 8);
       }
-      if (soundOn) LK.audio.note(n.slot, 0.5, 1.5);
+      if (!soundOn) return;
+      if (view.gm === 'zieh') {
+        const o = 1 - (li % 2);
+        LK.audio.pull(li % 2, (view.tc[li % 2] || 0) - (view.tc[o] || 0));
+      } else if (view.gm === 'geheim') {
+        LK.audio.note(n.slot, 0.3, 1.2);
+        LK.audio.chime(view.ge ? view.ge.i - 1 : 0); // jeder gefundene Schritt klingt höher
+      } else if (view.gm === 'bild') {
+        LK.audio.note(n.slot, 0.5, 1.5);
+        if (from && edges[edgeKey(from, to)] && edges[edgeKey(from, to)].k > 1) LK.audio.note(n.slot, 0.16, 2, 0.06, 1); // ein bekannter Weg klingt heller
+      } else {
+        LK.audio.note(n.slot, 0.5, 1.5);
+        if (view.gm === 'dunkel') LK.audio.note(n.slot, 0.16, 1.4, 0.08, 2); // Funke: der Schatten weicht
+      }
     }
 
     // Schatz-Licht: goldene Wellen und zwei helle Töne, wenn ein Stern eingesammelt wurde
@@ -1006,7 +1263,7 @@
       view.vis = [];
       view.fin = { t0: performance.now() };
       pulses = [];
-      if (soundOn) LK.audio.finale(Object.values(s.players));
+      if (soundOn) { if (s.lost) LK.audio.lose(); else LK.audio.finale(Object.values(s.players)); }
     }
 
     function bez(a, b, t) {
@@ -1028,7 +1285,7 @@
     // Farbe des Lichts: bei Doppelten Lichtern und in der Staffel eigene Farben, sonst der Verlauf zwischen den Geräten
     function lightCol(li, c1, c2, k, a) {
       if (view.gm === 'doppel') return LK.rgba(LK.LIGHT_COLORS[li % 3], a);
-      if (view.gm === 'staffel') return LK.rgba(LK.TEAM_COLORS[li % 2], a);
+      if (LK.isTeamGm(view.gm)) return LK.rgba(LK.TEAM_COLORS[li % 2], a);
       return LK.mixRgba(c1, c2, k, a);
     }
 
@@ -1071,7 +1328,7 @@
       const R = baseR();
       const fin = view.fin;
       const finT = fin ? (now - fin.t0) / view.finDur : 0;
-      const winCol = view.gm === 'staffel' && view.win >= 0 ? LK.TEAM_COLORS[view.win] : null;
+      const winCol = LK.isTeamGm(view.gm) && view.win >= 0 ? LK.TEAM_COLORS[view.win] : null;
 
       // Lichtkugeln unterwegs
       pulses = pulses.filter((p) => {
@@ -1101,7 +1358,7 @@
         g.addColorStop(1, LK.rgba(b.col, al));
         const p = bez(a, b, 0.5);
         ctx.strokeStyle = g;
-        ctx.lineWidth = 1.5 + Math.min(e.k, 6) * 0.9;
+        ctx.lineWidth = 1.5 + Math.min(e.k, view.gm === 'bild' ? 12 : 6) * 0.9;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -1118,7 +1375,7 @@
         const born = Math.min(1, (now - n.born) / 500);
         const fade = n.dying ? Math.max(0, 1 - (now - n.dying) / 600) : 1;
         const li = litBy[id];
-        const lit = li !== undefined || (fin && finT < 0.9);
+        const lit = li !== undefined || (fin && finT < 0.9) || !!(view.mu && view.mu.cur === id);
         const ps = n.pop ? Math.max(0, 1 - (now - n.pop) / 600) : 0;
         const sc = (0.4 + 0.6 * ease(born)) * (1 + 0.35 * ps * ps) * (lit && !fin ? 1.12 : 1);
         const r = R * sc;
@@ -1137,6 +1394,21 @@
         ctx.lineWidth = 2.5;
         ctx.strokeStyle = LK.rgba(col, (lit ? 1 : 0.7) * fade);
         ctx.stroke();
+        // Geheime Reihenfolge: Dieses Gerät war es in diesem Schritt nicht
+        if (view.gm === 'geheim' && view.ge && view.ge.ex && view.ge.ex.includes(id)) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.strokeStyle = `rgba(251,113,133,${0.95 * fade})`;
+          ctx.lineWidth = 5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(n.x - r * 0.6, n.y - r * 0.6);
+          ctx.lineTo(n.x + r * 0.6, n.y + r * 0.6);
+          ctx.moveTo(n.x + r * 0.6, n.y - r * 0.6);
+          ctx.lineTo(n.x - r * 0.6, n.y + r * 0.6);
+          ctx.stroke();
+          ctx.restore();
+        }
         // Ring: so lange noch Zeit bleibt, bis das Licht von allein weiterwandert
         const L = li !== undefined ? view.lights[li] : null;
         if (L && L.a > 0 && !fin) {
@@ -1244,6 +1516,38 @@
         view.vis.forEach((id, li) => { if (id && nodes[id]) ctx.fillText(String(li + 1), nodes[id].x, nodes[id].y + 1); });
       }
 
+      // Die Dunkelheit: ein Schatten schließt sich von den Rändern her
+      if (view.gm !== 'dunkel') LK.audio.drone(null);
+      if (view.gm === 'dunkel') {
+        let lvl = Math.min(1, view.dk + view.dkr * ((now - view.dkAt) / 1000));
+        if (fin && !view.lost) lvl *= Math.max(0, 1 - finT * 4);
+        LK.audio.drone(soundOn && !fin && !view.paused && view.ph === 'play' ? lvl : null);
+        if (lvl > 0.01) {
+          const mx = Math.hypot(W, H) / 2;
+          const r0 = mx * (1.05 - 0.85 * lvl);
+          const g = ctx.createRadialGradient(W / 2, H / 2, r0 * 0.55, W / 2, H / 2, r0 + mx * 0.3);
+          g.addColorStop(0, 'rgba(4,3,12,0)');
+          g.addColorStop(1, `rgba(4,3,12,${Math.min(0.95, 0.3 + 0.65 * lvl)})`);
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+        }
+        if (!fin && Object.keys(nodes).length) {
+          const bw = W * 0.4;
+          const bh = Math.max(8, H * 0.014);
+          const bx = (W - bw) / 2;
+          const by = H * 0.05;
+          ctx.fillStyle = 'rgba(180,190,255,0.16)';
+          ctx.fillRect(bx, by, bw, bh);
+          ctx.fillStyle = `rgba(${Math.round(120 + 100 * lvl)},${Math.round(110 - 50 * lvl)},255,0.95)`;
+          ctx.fillRect(bx, by, bw * lvl, bh);
+          ctx.fillStyle = 'rgba(200,205,240,0.8)';
+          ctx.font = `500 ${Math.round(Math.min(W, H) * 0.024)}px ${SANS}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('Dunkelheit', W / 2, by + bh + Math.min(W, H) * 0.03);
+        }
+      }
+
       drawHud(now, finT, fin);
 
       // Pause: Bildschirm abdunkeln, ein ruhiges Wort in der Mitte
@@ -1274,7 +1578,7 @@
 
       const progTarget = fin ? 1 : (view.goal ? (gm === 'schatz' ? view.sc : view.chain) / view.goal : 0);
       view.prog += (progTarget - view.prog) * 0.08;
-      const ringHidden = (fin && (tm || gm === 'staffel')) || gm === 'staffel';
+      const ringHidden = (fin && (tm || LK.isTeamGm(gm))) || LK.isTeamGm(gm);
       if (!ringHidden) {
         ctx.lineWidth = 6;
         ctx.lineCap = 'round';
@@ -1305,7 +1609,7 @@
         ctx.fillStyle = `rgba(160,168,210,${finA * 0.8})`;
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
         ctx.fillText(`bei ${devDat} und ${view.goalN} Weitergaben`, cx, cy + hr * 1.5);
-      } else if (fin && gm === 'staffel') {
+      } else if (fin && LK.isTeamGm(gm)) {
         const w = view.win;
         const c = w >= 0 ? LK.TEAM_COLORS[w] : '#ffffff';
         ctx.fillStyle = LK.rgba(c, finA);
@@ -1319,10 +1623,21 @@
           ctx.font = `600 ${Math.round(hr * 0.36)}px ${SANS}`;
           ctx.fillText(`Serie ${view.sw[0]} : ${view.sw[1]}`, cx, cy + hr * 1.3);
         }
+      } else if (fin && gm === 'dunkel' && view.lost) {
+        ctx.fillStyle = `rgba(235,238,255,${finA})`;
+        ctx.font = `600 ${Math.round(hr * 0.5)}px ${SANS}`;
+        ctx.fillText('Die Dunkelheit war schneller', cx, cy - hr * 0.1);
+        ctx.fillStyle = `rgba(200,205,240,${finA * 0.85})`;
+        ctx.font = `500 ${Math.round(hr * 0.34)}px ${SANS}`;
+        ctx.fillText(`${view.chain} von ${view.goal} geschafft. Noch einmal?`, cx, cy + hr * 0.6);
+      } else if (fin && gm === 'bild') {
+        ctx.fillStyle = 'rgba(235,238,255,0.85)';
+        ctx.font = `600 ${Math.round(hr * 0.42)}px ${SANS}`;
+        ctx.fillText('Euer Lichtbild', cx, H * 0.075);
       } else if (fin) {
         ctx.fillStyle = `rgba(235,238,255,${finA})`;
         ctx.font = `600 ${Math.round(hr * 0.42)}px ${SANS}`;
-        ctx.fillText(gm === 'schatz' ? 'Alle Sterne gesammelt' : 'Runde geschafft', cx, cy);
+        ctx.fillText(gm === 'schatz' ? 'Alle Sterne gesammelt' : (gm === 'muster' ? 'Alle Muster geschafft' : (gm === 'geheim' ? 'Die Reihenfolge ist geknackt' : 'Runde geschafft')), cx, cy);
       } else if (view.ph === 'count') {
         const left = Math.max(0, view.cd - (now - view.phAt));
         const nn = Math.max(1, Math.ceil(left / 1000));
@@ -1335,12 +1650,12 @@
         ctx.fillText('Mach dich bereit', cx, cy + hr * 1.35);
       } else if (view.ph === 'ready') {
         ctx.fillStyle = 'rgba(235,238,255,0.9)';
-        ctx.font = `600 ${Math.round(hr * (gm === 'staffel' ? 0.5 : 0.4))}px ${SANS}`;
+        ctx.font = `600 ${Math.round(hr * (LK.isTeamGm(gm) ? 0.5 : 0.4))}px ${SANS}`;
         ctx.fillText(tm ? 'Zeitspiel' : TITLES[gm], cx, cy - hr * 0.12);
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
-        ctx.fillText(`${view.goalN || ''} ${gm === 'schatz' ? 'Sterne' : 'Weitergaben'}${gm === 'staffel' ? ' pro Team' : ''}`, cx, cy + hr * 0.3);
-        if (gm === 'staffel') {
+        ctx.fillText(`${view.goalN || ''} ${({ staffel: 'Weitergaben pro Team', zieh: 'Schritte Vorsprung', schatz: 'Sterne', muster: 'Runden', geheim: 'Stationen' })[gm] || 'Weitergaben'}`, cx, cy + hr * 0.3);
+        if (LK.isTeamGm(gm)) {
           const cnt = [0, 0];
           Object.keys(view.team || {}).forEach((id) => { if (nodes[id] && !nodes[id].dying) cnt[view.team[id] ? 1 : 0]++; });
           const small = [0, 1].filter((t) => cnt[t] < 3);
@@ -1358,10 +1673,79 @@
         ctx.fillStyle = 'rgba(253,224,71,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.34)}px ${SANS}`;
         ctx.fillText(`★ ${view.sc} / ${view.goal}`, cx, cy);
-      } else if (gm !== 'staffel') {
+      } else if (gm === 'dunkel') {
+        ctx.fillStyle = 'rgba(235,238,255,0.85)';
+        ctx.font = `600 ${Math.round(hr * 0.5)}px ${SANS}`;
+        ctx.fillText(`${view.chain} / ${view.goal}`, cx, cy);
+      } else if (gm === 'muster' && view.mu) {
+        const mu = view.mu;
+        const txt = { wait: 'Es braucht mindestens zwei Geräte', show: mu.ag ? 'Noch mal ansehen' : 'Merk dir die Reihenfolge', go: 'Jetzt ihr! Wer war zuerst dran?', again: 'Nicht ganz. Gleich noch einmal', next: 'Richtig!' }[mu.ph] || '';
+        ctx.fillStyle = mu.ph === 'next' ? 'rgba(110,231,183,0.95)' : 'rgba(235,238,255,0.9)';
+        ctx.font = `600 ${Math.round(hr * 0.4)}px ${SANS}`;
+        ctx.fillText(txt, cx, cy - hr * 0.2);
+        ctx.fillStyle = 'rgba(200,205,240,0.7)';
+        ctx.font = `500 ${Math.round(hr * 0.26)}px ${SANS}`;
+        ctx.fillText(`Runde ${mu.lv} von ${view.goal}`, cx, cy + hr * 0.35);
+        const L = mu.sq.length;
+        const dr = hr * 0.11;
+        for (let k = 0; k < L; k++) {
+          const dx = cx + (k - (L - 1) / 2) * dr * 3;
+          ctx.beginPath();
+          ctx.arc(dx, cy + hr * 0.85, dr, 0, TAU);
+          if (mu.ph === 'go' || mu.ph === 'next') {
+            if (k < mu.i || mu.ph === 'next') { ctx.fillStyle = 'rgba(110,231,183,0.95)'; ctx.fill(); } else { ctx.strokeStyle = 'rgba(200,205,240,0.6)'; ctx.lineWidth = 2; ctx.stroke(); }
+          } else { ctx.strokeStyle = 'rgba(200,205,240,0.35)'; ctx.lineWidth = 2; ctx.stroke(); }
+        }
+      } else if (gm === 'geheim' && view.ge) {
+        ctx.fillStyle = 'rgba(235,238,255,0.9)';
+        ctx.font = `600 ${Math.round(hr * 0.4)}px ${SANS}`;
+        ctx.fillText(view.ge.lk ? 'Moment …' : 'Wer ist als Nächstes dran?', cx, cy - hr * 0.15);
+        ctx.fillStyle = 'rgba(200,205,240,0.7)';
+        ctx.font = `500 ${Math.round(hr * 0.26)}px ${SANS}`;
+        ctx.fillText(`Schritt ${Math.min(view.ge.i + 1, Math.max(1, view.ge.n - 1))} von ${Math.max(1, view.ge.n - 1)}`, cx, cy + hr * 0.4);
+      } else if (!LK.isTeamGm(gm)) {
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.3)}px ${SANS}`;
         ctx.fillText(`Runde ${view.round > 0 ? view.round : 1}`, cx, cy);
+      }
+
+      // Tauziehen: Ein Seil, der Punkt wandert zu dem Team, das öfter weitergibt
+      if (gm === 'zieh' && playersHere > 0 && !fin) {
+        const bw = W * 0.6;
+        const bh = Math.max(12, H * 0.026);
+        const x0 = (W - bw) / 2;
+        const y = H * 0.06;
+        const target = ((view.tc[0] || 0) - (view.tc[1] || 0)) / Math.max(1, view.goal);
+        view.zp += (target - view.zp) * 0.12;
+        const px = x0 + bw * (0.5 - view.zp / 2);
+        const g = ctx.createLinearGradient(x0, 0, x0 + bw, 0);
+        g.addColorStop(0, LK.rgba(LK.TEAM_COLORS[0], 0.85));
+        g.addColorStop(1, LK.rgba(LK.TEAM_COLORS[1], 0.85));
+        ctx.fillStyle = g;
+        ctx.fillRect(x0, y, bw, bh);
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillRect(cx - 1, y - 5, 2, bh + 10);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(px, y + bh / 2, bh * 0.95, 0, TAU);
+        ctx.fill();
+        ctx.font = `600 ${Math.round(Math.min(W, H) * 0.028)}px ${SANS}`;
+        [0, 1].forEach((t) => {
+          ctx.fillStyle = LK.rgba(LK.TEAM_COLORS[t], 0.95);
+          ctx.textAlign = t === 0 ? 'left' : 'right';
+          ctx.fillText(`Team ${LK.TEAM_NAMES[t]}`, t === 0 ? x0 : x0 + bw, y + bh + Math.min(W, H) * 0.035);
+          if (view.ser > 0) {
+            const dr = Math.min(W, H) * 0.012;
+            const dy = y + bh + Math.min(W, H) * 0.035 + dr * 2.6;
+            for (let k = 0; k < view.ser; k++) {
+              const dx = t === 0 ? x0 + dr + k * dr * 3 : x0 + bw - dr - k * dr * 3;
+              ctx.beginPath();
+              ctx.arc(dx, dy, dr, 0, TAU);
+              if ((view.sw[t] || 0) > k) { ctx.fillStyle = LK.rgba(LK.TEAM_COLORS[t], 0.95); ctx.fill(); } else { ctx.strokeStyle = LK.rgba(LK.TEAM_COLORS[t], 0.5); ctx.lineWidth = 2; ctx.stroke(); }
+            }
+          }
+        });
+        ctx.textAlign = 'center';
       }
 
       // Staffel: Fortschritt beider Teams oben
@@ -1408,7 +1792,7 @@
       }
     }
 
-    const needsStartView = () => view.tm || view.gm === 'staffel';
+    const needsStartView = () => view.tm || LK.isTeamGm(view.gm) || ['dunkel', 'muster', 'geheim'].includes(view.gm);
 
     function frame(now) {
       draw(now);
@@ -1443,7 +1827,9 @@
       mark('nr', st.nr);
       mark('sp', st.sp);
       mark('sj', st.sj);
-      document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== st.gm; });
+      document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = !el.dataset.for.split(' ').includes(st.gm); });
+      mark('dkv', st.dkv);
+      $('gnVal').textContent = st.gn ? String(st.gn) : `Auto (${st.goal})`;
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
     }
@@ -1523,6 +1909,15 @@
     onSetting('nr', 'nr', (v) => parseInt(v, 10));
     onSetting('sp', 'sp', (v) => parseInt(v, 10));
     onSetting('sj', 'sj', (v) => parseInt(v, 10));
+    onSetting('dkv', 'dkv', (v) => parseInt(v, 10));
+    // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
+    document.querySelectorAll('[data-gnstep]').forEach((b) => b.addEventListener('click', () => {
+      if (isHost !== true) return;
+      const base = st.gn || computeGoal();
+      applySettings({ gn: Math.min(100, Math.max(5, Math.round((base + parseInt(b.dataset.gnstep, 10)) / 5) * 5)) });
+      markSettings();
+    }));
+    $('gnAuto').addEventListener('click', () => { if (isHost === true) { applySettings({ gn: 0 }); markSettings(); } });
     onSetting('ser', 'ser', (v) => parseInt(v, 10));
     onSetting('tsel', 'tsel', (v) => parseInt(v, 10));
 
@@ -1582,12 +1977,30 @@
     });
     $('devClose').addEventListener('click', () => $('devDlg').close());
 
-    $('goBtn').addEventListener('click', startCountdown);
+    const goOrNext = () => {
+      if (st.gm === 'bild' && st.finale) { if (isHost === true) { resetRound(true, true); publish(); } return; }
+      startCountdown();
+    };
+    $('goBtn').addEventListener('click', goOrNext);
     $('shakeBtn').addEventListener('click', shakeTeams);
+    // Lichtbild als Bild speichern
+    $('saveBtn').addEventListener('click', () => {
+      try {
+        cv.toBlob((blob) => {
+          if (!blob) return;
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `lichtbild-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.png`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        }, 'image/png');
+      } catch (e) { console.error('Lichtkette: Bild speichern', e); }
+    });
     document.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && !$('goBtn').hidden && !$('dlg').open && document.activeElement === document.body) {
         e.preventDefault();
-        startCountdown();
+        goOrNext();
       }
     });
 

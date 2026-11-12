@@ -498,3 +498,8 @@ dialog .btn.close {
 #teamPick .pick small { font-size: clamp(16px, 3vmin, 24px); visibility: hidden; font-weight: 600; }
 #teamPick .pick[aria-pressed="true"] { opacity: 1; }
 #teamPick .pick[aria-pressed="true"] small { visibility: visible; }
+
+.stepper { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stepper span { min-width: 96px; text-align: center; font-weight: 600; font-size: 18px; }
+#saveBtn { position: absolute; left: 50%; top: 77%; transform: translateX(-50%); padding: 12px 26px; z-index: 3; }
+.gmgrid { flex-wrap: wrap; }

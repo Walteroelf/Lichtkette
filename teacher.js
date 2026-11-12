@@ -6,12 +6,17 @@
 // - Namen der Geräte bleiben nur hier, sie gehen nie ins Netz und stehen nicht auf der Tafel.
 (function (LK) {
   const $ = (id) => document.getElementById(id);
-  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
     staffel: 'Weitergaben pro Team',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
+    zieh: 'Schritte Vorsprung zum Sieg',
+    dunkel: 'Weitergaben bis zum Sieg',
+    muster: 'Runden bis zum Sieg',
+    bild: 'Weitergaben pro Bild',
+    geheim: 'Stationen (höchstens so viele wie Geräte)',
   };
   const PHASE = { ready: 'wartet auf „Los“', count: 'Countdown läuft', play: 'läuft' };
   // Einstellungen pro Gerät: Schlüssel, Beschriftung, Werte (leer = das Gerät entscheidet selbst)
@@ -182,6 +187,14 @@
     setting('tsp', 'sp', (v) => parseInt(v, 10));
     setting('tsj', 'sj', (v) => parseInt(v, 10));
     setting('tser', 'ser', (v) => parseInt(v, 10));
+    setting('tdkv', 'dkv', (v) => parseInt(v, 10));
+    // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
+    document.querySelectorAll('[data-tgnstep]').forEach((b) => b.addEventListener('click', () => {
+      if (!priv) return;
+      const base = priv.gn || priv.goal || 10;
+      send({ c: 'settings', patch: { gn: Math.min(100, Math.max(5, Math.round((base + parseInt(b.dataset.tgnstep, 10)) / 5) * 5)) } });
+    }));
+    $('tGnAuto').addEventListener('click', () => send({ c: 'settings', patch: { gn: 0 } }));
     setting('ttsel', 'tsel', (v) => parseInt(v, 10));
     $('tShake').addEventListener('click', () => send({ c: 'shake' }));
 
@@ -248,7 +261,7 @@
       renderDiag(p);
       // Zusammenfassung und Knöpfe
       const phase = p.finale ? 'Finale' : (p.paused ? 'pausiert' : (PHASE[p.ph] || ''));
-      const serie = p.gm === 'staffel' && p.ser && p.sw ? ` · Serie ${p.sw[0]} : ${p.sw[1]}` : '';
+      const serie = LK.isTeamGm(p.gm) && p.ser && p.sw ? ` · Serie ${p.sw[0]} : ${p.sw[1]}` : '';
       $('tSummary').textContent = `${TITLES[p.gm] || ''}${p.gm === 'klassik' && p.tm ? ' (Zeitspiel)' : ''}${serie} · Runde ${p.round} · ${phase} · ${p.n} ${p.n === 1 ? 'Gerät' : 'Geräte'}`;
       $('tGo').hidden = !(p.ph === 'ready' && p.n > 0);
       const canPause = p.ph === 'play' && !p.finale;
@@ -266,10 +279,12 @@
       mark('tsp', p.sp);
       mark('tsj', p.sj);
       mark('tser', p.ser);
+      mark('tdkv', p.dkv);
+      $('tGnVal').textContent = p.gn ? String(p.gn) : `Auto (${p.goal})`;
       mark('ttsel', p.tsel);
-      $('tShake').hidden = !(p.gm === 'staffel' && p.ph === 'ready' && p.n > 0);
+      $('tShake').hidden = !(LK.isTeamGm(p.gm) && p.ph === 'ready' && p.n > 0);
       $('tGo').textContent = p.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
-      document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = el.dataset.tfor !== p.gm; });
+      document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = !el.dataset.tfor.split(' ').includes(p.gm); });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';
 
       // Geräte
@@ -280,7 +295,7 @@
       Object.keys(cards).forEach((id) => { if (!ids.has(id)) { cards[id].el.remove(); delete cards[id]; } });
       list.forEach((d) => {
         const c = cards[d.id] || buildCard(d.id);
-        const col = p.gm === 'staffel' && d.team !== undefined ? LK.TEAM_COLORS[d.team] : LK.COLORS[d.slot];
+        const col = LK.isTeamGm(p.gm) && d.team !== undefined ? LK.TEAM_COLORS[d.team] : LK.COLORS[d.slot];
         if (c.shape.dataset.s !== `${d.slot}|${col}`) {
           c.shape.dataset.s = `${d.slot}|${col}`;
           c.shape.style.color = col;

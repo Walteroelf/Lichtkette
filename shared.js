@@ -21,6 +21,8 @@ window.LK = window.LK || {};
   // Staffel: zwei Teams. Doppelte Lichter: jedes Licht hat seine eigene Farbe.
   LK.TEAM_COLORS = ['#22d3ee', '#f472b6'];
   LK.TEAM_NAMES = ['Blau', 'Pink'];
+  // Spielarten mit zwei Teams (Staffel, Tauziehen)
+  LK.isTeamGm = (g) => g === 'staffel' || g === 'zieh';
   LK.LIGHT_COLORS = ['#fde68a', '#7dd3fc', '#fbcfe8'];
 
   const TAU = Math.PI * 2;
@@ -203,6 +205,90 @@ window.LK = window.LK || {};
       });
     }
 
-    return { init, note, finale, get ready() { return !!ctx; } };
+    // ---- Töne für die Spielarten: Sie verraten etwas über den Spielverlauf ----
+    const pitch = (semis) => 220 * Math.pow(2, semis / 12);
+    function tone(f, vol, dur, when, type) {
+      if (!ctx) return;
+      const t = ctx.currentTime + (when || 0);
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol || 0.3, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.6));
+      o.connect(g);
+      g.connect(master);
+      o.start(t);
+      o.stop(t + (dur || 0.6) + 0.05);
+    }
+    // Hell und steigend: Schritt für Schritt näher am Ziel
+    function chime(step) {
+      if (!ctx) return;
+      const i = Math.max(0, step);
+      const semis = DEG[i % 5] + 12 * Math.floor(i / 5) + 12;
+      tone(pitch(semis), 0.3, 0.9, 0, 'triangle');
+      tone(pitch(semis + 12), 0.1, 1.1, 0.05);
+    }
+    // Aufsteigender Lauf: etwas wurde geschafft
+    function arp() {
+      for (let i = 0; i < 4; i++) tone(pitch(DEG[i % 5] + 12 + (i >= 4 ? 12 : 0)), 0.26, 1.0, i * 0.09, 'triangle');
+      tone(pitch(24), 0.2, 1.4, 0.4);
+    }
+    // Zwei weiche, tiefe Töne: nicht ganz richtig (kein Schreck, keine Strafe)
+    function thud() {
+      tone(130, 0.24, 0.35, 0, 'sine');
+      tone(98, 0.22, 0.45, 0.16, 'sine');
+    }
+    // Absteigend: Die Runde ist nicht gelungen, aber ohne Härte
+    function lose() {
+      tone(pitch(7), 0.28, 1.2, 0, 'triangle');
+      tone(pitch(3), 0.28, 1.4, 0.35, 'triangle');
+      tone(pitch(-2), 0.28, 2.2, 0.75, 'triangle');
+      tone(pitch(-12), 0.2, 2.6, 0.75);
+    }
+    // Tauziehen: Wer vorn liegt, klingt höher, wer zurückliegt, tiefer. Teams haben ihre eigene Lage.
+    function pull(team, diff) {
+      const semis = (team ? 7 : 0) + 2 * Math.max(-5, Math.min(5, diff));
+      tone(pitch(semis), 0.34, 1.0, 0, 'triangle');
+      tone(pitch(semis + 12), 0.1, 1.2, 0.04);
+    }
+    // Dunkelheit: ein tiefer Ton, der mit dem Schatten lauter, höher und unruhiger wird. null = still
+    let dr = null;
+    function drone(level) {
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      if (level === null || level === undefined) {
+        if (dr && dr.on) { dr.g2.gain.setTargetAtTime(0, t, 0.25); dr.on = false; }
+        return;
+      }
+      if (!dr) {
+        const o = ctx.createOscillator();
+        const lfo = ctx.createOscillator();
+        const lg = ctx.createGain();
+        const g1 = ctx.createGain();
+        const g2 = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = 52;
+        lfo.frequency.value = 1.2;
+        lg.gain.value = 0.45;
+        g1.gain.value = 0.55;
+        g2.gain.value = 0;
+        lfo.connect(lg);
+        lg.connect(g1.gain);
+        o.connect(g1);
+        g1.connect(g2);
+        g2.connect(master);
+        o.start();
+        lfo.start();
+        dr = { o, lfo, g2, on: false };
+      }
+      dr.on = true;
+      dr.g2.gain.setTargetAtTime(0.01 + 0.11 * level, t, 0.4);
+      dr.lfo.frequency.setTargetAtTime(1.2 + 5 * level, t, 0.4);
+      dr.o.frequency.setTargetAtTime(52 + 24 * level, t, 0.4);
+    }
+
+    return { init, note, finale, tone, chime, arp, thud, lose, pull, drone, get ready() { return !!ctx; } };
   })();
 })(window.LK);
