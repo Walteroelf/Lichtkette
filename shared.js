@@ -203,49 +203,6 @@ window.LK = window.LK || {};
       });
     }
 
-    // ---- Schlagzeug und Bass für den Rhythmus-Modus ----
-    let noiseBuf = null;
-    function noise(dur, type, freqHz, vol) {
-      if (!ctx) return;
-      if (!noiseBuf) {
-        noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-        const d = noiseBuf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      }
-      const t = ctx.currentTime;
-      const src = ctx.createBufferSource();
-      src.buffer = noiseBuf;
-      const f = ctx.createBiquadFilter();
-      f.type = type;
-      f.frequency.value = freqHz;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(vol, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      src.connect(f);
-      f.connect(g);
-      g.connect(master);
-      src.start(t);
-      src.stop(t + dur + 0.02);
-    }
-    function kick() {
-      if (!ctx) return;
-      const t = ctx.currentTime;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(150, t);
-      o.frequency.exponentialRampToValueAtTime(48, t + 0.12);
-      g.gain.setValueAtTime(0.75, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
-      o.connect(g);
-      g.connect(master);
-      o.start(t);
-      o.stop(t + 0.26);
-    }
-    const hat = () => noise(0.05, 'highpass', 7500, 0.14);
-    const clap = () => noise(0.14, 'bandpass', 1800, 0.3);
-    const bass = (slot) => note(slot, 0.34, 0.55, 0, -1);
-
-    return { init, note, finale, kick, hat, clap, bass, get ready() { return !!ctx; } };
+    return { init, note, finale, get ready() { return !!ctx; } };
   })();
 })(window.LK);

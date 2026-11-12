@@ -6,10 +6,9 @@
 // - Namen der Geräte bleiben nur hier, sie gehen nie ins Netz und stehen nicht auf der Tafel.
 (function (LK) {
   const $ = (id) => document.getElementById(id);
-  const TITLES = { klassik: 'Lichtkette', rhythmus: 'Rhythmus', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
-    rhythmus: 'Weitergaben pro Runde',
     staffel: 'Weitergaben pro Team',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
@@ -17,13 +16,13 @@
   const PHASE = { ready: 'wartet auf „Los“', count: 'Countdown läuft', play: 'läuft' };
   // Einstellungen pro Gerät: Schlüssel, Beschriftung, Werte (leer = das Gerät entscheidet selbst)
   const OPTS = [
-    { key: 'rnd', label: 'Tippfläche', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'fest'], ['1', 'springender Punkt']] },
-    { key: 'sz', label: 'Größe des Punkts oder Kreises', type: 'float', vals: [['', 'wie am Gerät'], ['0.75', 'klein'], ['1', 'normal'], ['1.4', 'groß']] },
-    { key: 'sa', label: 'Stern einsammeln (Schatz-Licht): Taster = zweimal drücken (erst Stern, dann Licht), Blick = zweites Ziel', type: 'int', vals: [['', 'wie am Gerät'], ['1', 'ein Tipp reicht'], ['0', 'Stern extra antippen']] },
-    { key: 'pn', label: 'Fehltipps (Staffel)', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'ohne Strafe'], ['1', 'mit Strafe']] },
-    { key: 'nt', label: 'Zeit dieses Geräts (Zeitspiel, Staffel)', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'zählt'], ['1', 'zählt nicht']] },
-    { key: 'w', label: 'Licht wandert weiter nach', type: 'int', vals: [['', 'wie am Gerät'], ['0', 'nie'], ['10', '10 s'], ['30', '30 s']] },
-    { key: 'tt', label: 'Team (Staffel, wirkt vor dem Start einer Runde)', type: 'str', vals: [['', 'wie am Gerät'], ['x', 'automatisch'], ['a', 'Blau'], ['b', 'Pink']] },
+    { key: 'rnd', label: 'Tippfläche', type: 'int', vals: [['0', 'fest'], ['1', 'springender Punkt']] },
+    { key: 'sz', label: 'Größe des Punkts oder Kreises', type: 'float', vals: [['0.6', 'klein'], ['0.75', 'normal'], ['1', 'groß'], ['1.4', 'sehr groß']] },
+    { key: 'sa', label: 'Stern einsammeln (Schatz-Licht): Taster = zweimal drücken (erst Stern, dann Licht), Blick = zweites Ziel', type: 'int', vals: [['1', 'ein Tipp reicht'], ['0', 'Stern extra antippen']] },
+    { key: 'pn', label: 'Fehltipps (Staffel)', type: 'int', vals: [['0', 'ohne Strafe'], ['1', 'mit Strafe']] },
+    { key: 'nt', label: 'Zeit dieses Geräts (Zeitspiel, Staffel)', type: 'int', vals: [['0', 'zählt'], ['1', 'zählt nicht']] },
+    { key: 'w', label: 'Licht wandert weiter nach', type: 'int', vals: [['0', 'nie'], ['10', '10 s'], ['30', '30 s']] },
+    { key: 'tt', label: 'Team (Staffel, wirkt vor dem Start einer Runde)', type: 'str', vals: [['x', 'automatisch'], ['a', 'Blau'], ['b', 'Pink']] },
   ];
 
   LK.startTeacher = async function (room, startBroker) {
@@ -178,11 +177,13 @@
     setting('ttm', 'tm', (v) => parseInt(v, 10));
     setting('tgn', 'gn', (v) => parseInt(v, 10));
     setting('tnl', 'nl', (v) => parseInt(v, 10));
-    setting('tbpm', 'bpm', (v) => parseInt(v, 10));
     setting('tpen', 'pen', (v) => parseInt(v, 10));
     setting('tnr', 'nr', (v) => parseInt(v, 10));
     setting('tsp', 'sp', (v) => parseInt(v, 10));
     setting('tsj', 'sj', (v) => parseInt(v, 10));
+    setting('tser', 'ser', (v) => parseInt(v, 10));
+    setting('ttsel', 'tsel', (v) => parseInt(v, 10));
+    $('tShake').addEventListener('click', () => send({ c: 'shake' }));
 
     // ---------- Anzeige ----------
     const cards = {};
@@ -247,7 +248,8 @@
       renderDiag(p);
       // Zusammenfassung und Knöpfe
       const phase = p.finale ? 'Finale' : (p.paused ? 'pausiert' : (PHASE[p.ph] || ''));
-      $('tSummary').textContent = `${TITLES[p.gm] || ''}${p.gm === 'klassik' && p.tm ? ' (Zeitspiel)' : ''} · Runde ${p.round} · ${phase} · ${p.n} ${p.n === 1 ? 'Gerät' : 'Geräte'}`;
+      const serie = p.gm === 'staffel' && p.ser && p.sw ? ` · Serie ${p.sw[0]} : ${p.sw[1]}` : '';
+      $('tSummary').textContent = `${TITLES[p.gm] || ''}${p.gm === 'klassik' && p.tm ? ' (Zeitspiel)' : ''}${serie} · Runde ${p.round} · ${phase} · ${p.n} ${p.n === 1 ? 'Gerät' : 'Geräte'}`;
       $('tGo').hidden = !(p.ph === 'ready' && p.n > 0);
       const canPause = p.ph === 'play' && !p.finale;
       $('tPause').disabled = !canPause;
@@ -259,11 +261,13 @@
       mark('ttm', p.tm);
       mark('tgn', p.gn);
       mark('tnl', p.nl);
-      mark('tbpm', p.bpm);
       mark('tpen', p.pen);
       mark('tnr', p.nr);
       mark('tsp', p.sp);
       mark('tsj', p.sj);
+      mark('tser', p.ser);
+      mark('ttsel', p.tsel);
+      $('tShake').hidden = !(p.gm === 'staffel' && p.ph === 'ready' && p.n > 0);
       $('tGo').textContent = p.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
       document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = el.dataset.tfor !== p.gm; });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';
@@ -288,7 +292,7 @@
         c.chip.className = `t-chip ${lost || old ? 'off' : (d.holds ? 'on' : '')}`;
         c.el.classList.toggle('holds', d.holds);
         OPTS.forEach((o) => {
-          const cur = d.cfg[o.key] === undefined ? '' : String(d.cfg[o.key]);
+          const cur = String(d.eff && d.eff[o.key] !== undefined ? d.eff[o.key] : (d.cfg[o.key] === undefined ? '' : d.cfg[o.key]));
           c.segs[o.key].querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
         });
         $('tDevices').appendChild(c.el); // hält die Reihenfolge nach Form und Farbe

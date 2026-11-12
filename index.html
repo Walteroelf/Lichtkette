@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261111-0955">
+<meta name="build" content="20261112-0922">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -29,7 +29,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261111-0955">
+<link rel="stylesheet" href="style.css?v=20261112-0922">
 </head>
 <body>
 
@@ -71,7 +71,6 @@
       <h2>Spielart</h2>
       <div class="gmgrid">
         <button class="gm" data-tgm="klassik">Lichtkette</button>
-        <button class="gm" data-tgm="rhythmus">Rhythmus</button>
         <button class="gm" data-tgm="staffel">Staffel</button>
         <button class="gm" data-tgm="doppel">Doppelte Lichter</button>
         <button class="gm" data-tgm="schatz">Schatz-Licht</button>
@@ -90,11 +89,12 @@
         <label>Stern springt weiter nach (nur Geräte mit „Stern extra antippen“)</label>
         <div class="seg wide"><button data-tsj="0">bleibt</button><button data-tsj="6">6 s</button><button data-tsj="4">4 s</button><button data-tsj="3">3 s</button></div>
       </div>
-      <div data-tfor="rhythmus" class="t-row">
-        <label>Tempo</label>
-        <div class="seg wide"><button data-tbpm="70">langsam</button><button data-tbpm="90">mittel</button><button data-tbpm="110">schnell</button></div>
-      </div>
       <div data-tfor="staffel" class="t-row">
+        <label>Serie (Siegpunkte über mehrere Runden)</label>
+        <div class="seg wide"><button data-tser="0">aus</button><button data-tser="2">Best of 3</button><button data-tser="3">Best of 5</button></div>
+        <label>Teams</label>
+        <div class="seg wide"><button data-ttsel="0">zufällig</button><button data-ttsel="1">Schüler wählen</button></div>
+        <button id="tShake" class="btn" type="button" hidden>🎲 Teams neu würfeln</button>
         <label>Strafpause bei Fehltipp (nur Geräte mit „mit Strafe“)</label>
         <div class="seg wide"><button data-tpen="0">aus</button><button data-tpen="2">2 s</button><button data-tpen="4">4 s</button></div>
       </div>
@@ -216,6 +216,11 @@
   <div id="prog"><i></i></div>
   <span id="conn" class="dot bad"></span>
   <button id="change" aria-label="Eingabeart ändern">⋯</button>
+  <div id="teamPick" hidden>
+    <p id="pickHint">Tippe auf dein Team.</p>
+    <button type="button" data-pick="a" class="pick a"><b>Blau</b><small>✓ dein Team</small></button>
+    <button type="button" data-pick="b" class="pick b"><b>Pink</b><small>✓ dein Team</small></button>
+  </div>
 </section>
 
 <!-- Tafel -->
@@ -237,6 +242,7 @@
   <div id="netWarn" role="alert" hidden>Verbindung zum Server gestört. Die Geräte können gerade nicht mitspielen. Es wird automatisch neu versucht.</div>
   <button id="gear" aria-label="Einstellungen">⚙</button>
   <button id="goBtn" class="big-btn" hidden>Los ▶</button>
+  <button id="shakeBtn" class="btn" hidden>🎲 Teams neu würfeln</button>
 
   <div id="startOv" class="overlay">
     <h1 class="logo">Lichtkette</h1>
@@ -261,34 +267,34 @@
     <div class="stack tight">
       <button id="devBlink" class="btn" type="button">Gerät aufblinken lassen</button>
     </div>
-    <p class="info">Die folgenden Einstellungen gelten nur für dieses Gerät und gehen vor, was am Gerät eingestellt ist. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.</p>
+    <p class="info">Die Einstellungen gelten nur für dieses Gerät. Markiert ist, was gerade gilt. „Alles zurücksetzen“ stellt die Standardwerte wieder her.</p>
     <div class="stack tight">
       <label>Tippfläche</label>
-      <div class="seg wide" data-cfg="rnd" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">fest</button><button data-v="1">springender Punkt</button></div>
+      <div class="seg wide" data-cfg="rnd" data-type="int"><button data-v="0">fest</button><button data-v="1">springender Punkt</button></div>
     </div>
     <div class="stack tight">
       <label>Größe des Punkts oder Kreises</label>
-      <div class="seg wide" data-cfg="sz" data-type="float"><button data-v="">wie am Gerät</button><button data-v="0.75">klein</button><button data-v="1">normal</button><button data-v="1.4">groß</button></div>
+      <div class="seg wide" data-cfg="sz" data-type="float"><button data-v="0.6">klein</button><button data-v="0.75">normal</button><button data-v="1">groß</button><button data-v="1.4">sehr groß</button></div>
     </div>
     <div class="stack tight">
       <label>Stern einsammeln (Schatz-Licht)</label>
-      <div class="seg wide" data-cfg="sa" data-type="int"><button data-v="">wie am Gerät</button><button data-v="1">ein Tipp reicht</button><button data-v="0">Stern extra antippen</button></div>
+      <div class="seg wide" data-cfg="sa" data-type="int"><button data-v="1">ein Tipp reicht</button><button data-v="0">Stern extra antippen</button></div>
     </div>
     <div class="stack tight">
       <label>Fehltipps (Staffel, Tippen und Maus)</label>
-      <div class="seg wide" data-cfg="pn" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">ohne Strafe</button><button data-v="1">mit Strafe</button></div>
+      <div class="seg wide" data-cfg="pn" data-type="int"><button data-v="0">ohne Strafe</button><button data-v="1">mit Strafe</button></div>
     </div>
     <div class="stack tight">
       <label>Zeit dieses Geräts (Zeitspiel, Staffel)</label>
-      <div class="seg wide" data-cfg="nt" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">zählt</button><button data-v="1">zählt nicht</button></div>
+      <div class="seg wide" data-cfg="nt" data-type="int"><button data-v="0">zählt</button><button data-v="1">zählt nicht</button></div>
     </div>
     <div class="stack tight">
       <label>Licht wandert weiter nach</label>
-      <div class="seg wide" data-cfg="w" data-type="int"><button data-v="">wie am Gerät</button><button data-v="0">nie</button><button data-v="10">10 s</button><button data-v="30">30 s</button></div>
+      <div class="seg wide" data-cfg="w" data-type="int"><button data-v="0">nie</button><button data-v="10">10 s</button><button data-v="30">30 s</button></div>
     </div>
     <div class="stack tight">
       <label>Team (Staffel, wirkt vor dem Start einer Runde)</label>
-      <div class="seg wide" data-cfg="tt" data-type="str"><button data-v="">wie am Gerät</button><button data-v="x">automatisch</button><button data-v="a">Blau</button><button data-v="b">Pink</button></div>
+      <div class="seg wide" data-cfg="tt" data-type="str"><button data-v="x">automatisch</button><button data-v="a">Blau</button><button data-v="b">Pink</button></div>
     </div>
     <div class="stack"><button id="devReset" class="btn ghost">Alles zurücksetzen</button></div>
     <button id="devClose" class="btn close">Fertig</button>
@@ -309,7 +315,6 @@
       <label>Spielart</label>
       <div class="gmgrid">
         <button class="gm" data-gm="klassik">Lichtkette</button>
-        <button class="gm" data-gm="rhythmus">Rhythmus</button>
         <button class="gm" data-gm="staffel">Staffel</button>
         <button class="gm" data-gm="doppel">Doppelte Lichter</button>
         <button class="gm" data-gm="schatz">Schatz-Licht</button>
@@ -320,6 +325,10 @@
         <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
       </div>
       <div data-for="staffel" class="stack tight">
+        <label>Serie (Siegpunkte über mehrere Runden)</label>
+        <div class="seg wide"><button data-ser="0">aus</button><button data-ser="2">Best of 3</button><button data-ser="3">Best of 5</button></div>
+        <label>Teams</label>
+        <div class="seg wide"><button data-tsel="0">zufällig</button><button data-tsel="1">Schüler wählen</button></div>
         <label>Strafpause bei Fehltipp (nur Geräte, die „mit Strafe“ eingestellt sind)</label>
         <div class="seg wide"><button data-pen="0">aus</button><button data-pen="2">2 s</button><button data-pen="4">4 s</button></div>
       </div>
@@ -332,10 +341,6 @@
         <div class="seg wide"><button data-sp="1">1</button><button data-sp="2">2</button><button data-sp="3">3</button><button data-sp="5">5</button><button data-sp="0">steigend</button></div>
         <label>Stern springt weiter nach (nur Geräte mit „Stern extra antippen“)</label>
         <div class="seg wide"><button data-sj="0">bleibt</button><button data-sj="6">6 s</button><button data-sj="4">4 s</button><button data-sj="3">3 s</button></div>
-      </div>
-      <div data-for="rhythmus" class="stack tight">
-        <label>Tempo</label>
-        <div class="seg wide"><button data-bpm="70">langsam</button><button data-bpm="90">mittel</button><button data-bpm="110">schnell</button></div>
       </div>
       <label id="gnLabel">Weitergaben pro Runde</label>
       <div class="seg wide"><button data-gn="0">Auto</button><button data-gn="10">10</button><button data-gn="15">15</button><button data-gn="20">20</button></div>
@@ -360,13 +365,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261111-0955"></script>
-<script src="lib/qrcode.js?v=20261111-0955"></script>
-<script src="shared.js?v=20261111-0955"></script>
-<script src="net.js?v=20261111-0955"></script>
-<script src="board.js?v=20261111-0955"></script>
-<script src="player.js?v=20261111-0955"></script>
-<script src="teacher.js?v=20261111-0955"></script>
-<script src="main.js?v=20261111-0955"></script>
+<script src="lib/mqtt.min.js?v=20261112-0922"></script>
+<script src="lib/qrcode.js?v=20261112-0922"></script>
+<script src="shared.js?v=20261112-0922"></script>
+<script src="net.js?v=20261112-0922"></script>
+<script src="board.js?v=20261112-0922"></script>
+<script src="player.js?v=20261112-0922"></script>
+<script src="teacher.js?v=20261112-0922"></script>
+<script src="main.js?v=20261112-0922"></script>
 </body>
 </html>

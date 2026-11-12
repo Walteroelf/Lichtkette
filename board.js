@@ -5,7 +5,6 @@
 //
 // Spielarten (gm):
 //   klassik   ein Licht, zufällig von Gerät zu Gerät, optional als Zeitspiel mit Bestzeit
-//   rhythmus  ein Licht, Weitergaben passieren im Takt, dazu baut sich ein Track auf
 //   staffel   zwei Teams, jedes mit eigenem Licht, wer zuerst die Weitergaben schafft, gewinnt
 //   doppel    zwei oder drei Lichter gleichzeitig
 //   schatz    ein Licht sammelt Sterne ein, die bei einzelnen Geräten liegen
@@ -17,20 +16,17 @@
   const GONE_MS = 9000; // so lange ohne Lebenszeichen, dann fliegt ein Gerät aus dem Spiel
   const GN_OPTIONS = [0, 10, 15, 20]; // 0 = automatisch
   const NL_OPTIONS = [2, 3];
-  const BPM_OPTIONS = [70, 90, 110];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
-  const GAMES = ['klassik', 'rhythmus', 'staffel', 'doppel', 'schatz'];
-  const TITLES = { klassik: 'Lichtkette', rhythmus: 'Rhythmus', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const GAMES = ['klassik', 'staffel', 'doppel', 'schatz'];
+  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
     klassik: 'Ein Licht wandert zufällig von Gerät zu Gerät. Wahlweise als Zeitspiel mit Bestzeit.',
-    rhythmus: 'Das Licht springt im Takt weiter. Mit jeder Weitergabe kommt mehr Musik dazu.',
     staffel: 'Zwei Teams, jedes mit eigenem Licht. Wer zuerst die Weitergaben schafft, gewinnt.',
     doppel: 'Zwei oder drei Lichter gleichzeitig. Jedes Gerät hat höchstens ein Licht.',
     schatz: 'Das Licht sammelt Sterne ein, die bei einzelnen Geräten liegen.',
   };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
-    rhythmus: 'Weitergaben pro Runde',
     staffel: 'Weitergaben pro Team',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
@@ -52,14 +48,10 @@
     const teamMem = {};
     let bags = {};
     const autoTimers = [];
-    let pendingPass = {};
     let finishing = false;
     let finTimer = null;
     let cdTimer = null;
     let decideTimer = null;
-    let beatTimer = null;
-    let beatAt = 0;
-    let beatCount = 0;
     let token = 0;
     const penUntil = [0, 0]; // Staffel: bis wann das Licht des Teams wegen eines Fehltipps pausiert
     // Vorgaben der Tafel pro Gerät (überstimmen die Einstellung am Gerät). Fehlt ein Wert, entscheidet das Gerät selbst.
@@ -86,8 +78,11 @@
       lights: [], // { h: Halter, p: vorheriger Halter, k: Nr., s: Kennung, a: Auto-ms, z: Pause }
       chain: 0, goal: 8, round: 1, finale: false, players: {}, team: {}, tc: [0, 0], win: -1,
       stars: [], sc: 0,
+      // Staffel: ser = Siegpunkte bis zum Seriensieg (0 = keine Serie, 2 = Best of 3, 3 = Best of 5), sw = Siege je Team, sd = Serie entschieden
+      // tsel = 1: Schüler wählen ihr Team selbst, sk = Zähler für "Teams neu würfeln"
+      ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
-      gn: readNum('lk_gn', GN_OPTIONS, 0), nl: readNum('lk_nl', NL_OPTIONS, 2), bpm: readNum('lk_bpm', BPM_OPTIONS, 90),
+      gn: readNum('lk_gn', GN_OPTIONS, 0), nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -107,7 +102,7 @@
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
     const isTm = () => st.tm === 1 && st.gm === 'klassik';
-    const needsStart = () => isTm() || st.gm === 'staffel' || st.gm === 'rhythmus';
+    const needsStart = () => isTm() || st.gm === 'staffel';
     const isNt = (id) => !!(peers[id] && peers[id].nt);
 
     function freeSlot(id) {
@@ -118,7 +113,14 @@
     }
 
     // Staffel: Wunschteam des Geräts (a/b) oder das kleinere Team
-    const teamPref = (id) => { const p = peers[id] && peers[id].tt; return p === 'a' ? 0 : (p === 'b' ? 1 : -1); };
+    const ttPref = (id) => { const p = peers[id] && peers[id].tt; return p === 'a' ? 0 : (p === 'b' ? 1 : -1); };
+    // Festes Team (Tafel oder Gerät) geht vor, sonst die eigene Wahl des Schülers (nur wenn "Schüler wählen" an ist)
+    const teamPref = (id) => {
+      const t = ttPref(id);
+      if (t >= 0) return t;
+      const q = st.tsel === 1 && peers[id] ? peers[id].tp : '';
+      return q === 'a' ? 0 : (q === 'b' ? 1 : -1);
+    };
     function assignTeam(id) {
       let t = teamPref(id);
       if (t < 0) {
@@ -129,10 +131,45 @@
       st.team[id] = t;
       teamMem[id] = t;
     }
+    // Teams bleiben von Runde zu Runde gleich. Neu verteilt wird nur, wenn jemand ein Team wählt oder "Teams neu würfeln" gedrückt wird.
     function assignAllTeams() {
+      const old = st.team || {};
       st.team = {};
-      aliveIds().forEach((id) => { const t = teamPref(id); if (t >= 0) { st.team[id] = t; teamMem[id] = t; } });
+      aliveIds().forEach((id) => {
+        const t = teamPref(id);
+        if (t >= 0) { st.team[id] = t; teamMem[id] = t; } else if (old[id] === 0 || old[id] === 1) st.team[id] = old[id];
+      });
       aliveIds().filter((id) => st.team[id] === undefined).forEach(assignTeam);
+    }
+
+    // Teams neu würfeln (nur vor dem Start): Geräte mit "Zeit zählt nicht" werden gleichmäßig verteilt, feste Teams bleiben
+    function shakeTeams() {
+      if (isHost !== true || st.gm !== 'staffel' || st.ph !== 'ready') return;
+      st.sk = (st.sk || 0) + 1;
+      Object.keys(peers).forEach((k) => { peers[k].tp = ''; });
+      st.team = {};
+      const cnt = [0, 0];
+      const ntc = [0, 0];
+      const ids = aliveIds();
+      ids.forEach((id) => {
+        const t = ttPref(id);
+        if (t >= 0) { st.team[id] = t; cnt[t]++; if (isNt(id)) ntc[t]++; }
+      });
+      const free = ids.filter((id) => st.team[id] === undefined);
+      for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
+      const order = free.filter(isNt).concat(free.filter((id) => !isNt(id)));
+      const pick = (a, b) => (a === b ? -1 : (a < b ? 0 : 1));
+      order.forEach((id) => {
+        let t = isNt(id) ? pick(ntc[0], ntc[1]) : -1;
+        if (t < 0) t = pick(cnt[0], cnt[1]);
+        if (t < 0) t = Math.random() < 0.5 ? 0 : 1;
+        st.team[id] = t;
+        cnt[t]++;
+        if (isNt(id)) ntc[t]++;
+      });
+      ids.forEach((id) => { teamMem[id] = st.team[id]; });
+      st.seq++;
+      publish();
     }
 
     function addPlayer(id) {
@@ -208,7 +245,6 @@
       l.r = 0;
       if (st.gm === 'schatz' && next && st.stars.includes(next)) { l.n = starsPerTreasure(); l.r = l.n; }
       clearTimeout(autoTimers[li]);
-      delete pendingPass[li];
       if (next && !isTm() && st.gm !== 'staffel' && !st.paused) {
         const w = (peers[next] && peers[next].w) || 0;
         if (w > 0) {
@@ -276,7 +312,6 @@
 
     // collect: Das Gerät meldet, dass es auch den Stern angetippt hat (Schatz-Licht). Ohne Meldung bleibt der Stern liegen.
     function reqPass(li, collect) {
-      if (st.gm === 'rhythmus') { pendingPass[li] = collect ? 2 : 1; return; } // wird beim nächsten Schlag ausgeführt
       passLight(li, !!collect);
     }
 
@@ -304,56 +339,16 @@
         case 'klassik': return isTm() ? 10 : Math.max(8, aliveIds().length * 3);
         case 'doppel': return 12;
         case 'staffel': return 12;
-        case 'rhythmus': return 16;
         default: return 8; // schatz: Sterne
       }
     }
 
-    function stopBeat() { clearTimeout(beatTimer); beatTimer = null; }
-
-    // Rhythmus: Weitergaben passieren nur auf dem Schlag. So klingt jede Eingabe im Takt, egal wann sie kommt.
-    function startBeat() {
-      stopBeat();
-      const ms = 60000 / st.bpm;
-      beatCount = 0;
-      beatAt = performance.now() + ms;
-      const loop = () => {
-        onBeat(ms);
-        beatAt += ms;
-        beatTimer = setTimeout(loop, Math.max(0, beatAt - performance.now()));
-      };
-      beatTimer = setTimeout(loop, ms);
-    }
-
-    function onBeat(ms) {
-      if (isHost !== true || st.gm !== 'rhythmus' || st.ph !== 'play' || st.finale || st.paused) return;
-      beatCount++;
-      view.beatT = performance.now();
-      if (soundOn && LK.audio.ready) {
-        const layer = Math.min(4, Math.floor(st.chain / 3)); // alle 3 Weitergaben kommt eine Schicht dazu
-        LK.audio.kick();
-        if (layer >= 1) setTimeout(() => LK.audio.hat(), ms / 2);
-        if (layer >= 2 && beatCount % 2 === 0) LK.audio.clap();
-        if (layer >= 3 && beatCount % 4 === 1) {
-          const l = st.lights[0];
-          LK.audio.bass(l && l.h && st.players[l.h] !== undefined ? st.players[l.h] : 0);
-        }
-      }
-      Object.keys(pendingPass).forEach((k) => {
-        const collect = pendingPass[k] === 2;
-        delete pendingPass[k];
-        passLight(parseInt(k, 10), collect);
-      });
-    }
-
     // Neue Runde. Wo es nötig ist, wartet sie auf "Los", sonst geht das Spiel gleich los.
     // afterFinale: Die Runde ging gerade zu Ende. Je nach Einstellung wartet die nächste dann auf den Knopf "Neue Runde".
-    function resetRound(bump, afterFinale) {
+    function resetRound(bump, afterFinale, keepSeries) {
       clearTimeout(finTimer);
       clearTimeout(cdTimer);
-      stopBeat();
       st.lights.forEach((l, i) => clearTimeout(autoTimers[i]));
-      pendingPass = {};
       finishing = false;
       penUntil[0] = 0;
       penUntil[1] = 0;
@@ -363,6 +358,7 @@
       st.chain = 0;
       st.tc = [0, 0];
       st.win = -1;
+      if (st.sd || (!afterFinale && !keepSeries)) { st.sw = [0, 0]; st.sd = 0; }
       st.sc = 0;
       st.stars = [];
       st.lights = [];
@@ -386,7 +382,6 @@
       st.lights = [];
       ensureLights();
       ensureStars();
-      if (st.gm === 'rhythmus') startBeat();
       updateClockRun();
     }
 
@@ -417,11 +412,12 @@
       LK.store.set('lk_tm', String(st.tm));
       LK.store.set('lk_gn', String(st.gn));
       LK.store.set('lk_nl', String(st.nl));
-      LK.store.set('lk_bpm', String(st.bpm));
       LK.store.set('lk_pen', String(st.pen));
       LK.store.set('lk_nr', String(st.nr));
       LK.store.set('lk_sp', String(st.sp));
       LK.store.set('lk_sj', String(st.sj));
+      LK.store.set('lk_ser', String(st.ser));
+      LK.store.set('lk_ts', String(st.tsel));
       resetRound(true);
       publish();
     }
@@ -429,10 +425,13 @@
     function startFinale(win) {
       rollClock();
       clearTimeout(finTimer);
-      stopBeat();
       finishing = false;
       st.finale = true;
       st.win = st.gm === 'staffel' ? win : -1;
+      if (st.gm === 'staffel' && win >= 0 && st.ser > 0) {
+        st.sw[win]++;
+        if (st.sw[win] >= st.ser) st.sd = 1;
+      }
       if (isTm()) {
         st.ft = st.acc;
         const prevBest = bestFor(st.goal, st.n);
@@ -440,7 +439,6 @@
         if (prevBest === 0 || st.ft < prevBest) LK.store.set(`lk_best_${st.goal}_${st.n}`, String(st.ft));
         st.best = bestFor(st.goal, st.n);
       }
-      pendingPass = {};
       st.lights.forEach((l, i) => { clearTimeout(autoTimers[i]); l.p = l.h; l.h = null; l.a = 0; l.z = false; l.n = 0; l.r = 0; l.s = ++token; });
       st.seq++;
       st.run = false;
@@ -449,7 +447,7 @@
         if (isHost !== true) return;
         resetRound(true, true);
         publish();
-      }, (isTm() || st.gm === 'staffel') ? 8000 : FINALE_MS);
+      }, st.sd ? 11000 : ((isTm() || st.gm === 'staffel') ? 8000 : FINALE_MS));
     }
 
     // Staffel: Hat ein Gerät mit "Zeit zählt nicht" das Licht, wartet das andere Team, bis es weitergegeben hat.
@@ -541,7 +539,6 @@
         st.paused = true;
         st.run = false;
         st.lights.forEach((l, i) => { clearTimeout(autoTimers[i]); l.a = 0; });
-        pendingPass = {};
       } else {
         if (!st.paused) return;
         st.paused = false;
@@ -561,10 +558,27 @@
       publish();
     }
 
+    // Was für ein Gerät gerade gilt: Vorgabe der Tafel, sonst das, was das Gerät meldet, sonst der Standard
+    function effCfg(id) {
+      const p = peers[id] || {};
+      const c = cfgAll[id] || {};
+      const rnd = c.rnd !== undefined ? c.rnd : (p.md === 'blick' ? 0 : 1);
+      return {
+        rnd,
+        sz: c.sz !== undefined ? c.sz : (rnd === 1 ? 0.75 : 1),
+        sa: c.sa !== undefined ? c.sa : (p.md === 'touch' ? 0 : 1),
+        pn: p.pn ? 1 : 0,
+        nt: p.nt ? 1 : 0,
+        w: p.w || 0,
+        tt: c.tt !== undefined ? c.tt : (p.tt || 'x'),
+      };
+    }
+
     function privSnapshot() {
       const now = Date.now();
       return {
-        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, bpm: st.bpm, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
+        t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
+        ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
         devices: aliveIds().map((id) => ({
@@ -576,6 +590,7 @@
           m: peers[id] ? peers[id].m : '',
           bv: peers[id] ? peers[id].bv : '',
           cfg: cfgAll[id] || {},
+          eff: effCfg(id),
         })),
         // Diagnose: Was die Tafel selbst über sich weiß
         diag: {
@@ -604,7 +619,7 @@
       sa: (v) => v === 0 || v === 1,
       pn: (v) => v === 0 || v === 1,
       nt: (v) => v === 0 || v === 1,
-      sz: (v) => v === 0.75 || v === 1 || v === 1.4,
+      sz: (v) => v === 0.6 || v === 0.75 || v === 1 || v === 1.4,
       w: (v) => LK.WAIT_OPTIONS.includes(v),
       tt: (v) => v === 'a' || v === 'b' || v === 'x',
     };
@@ -618,16 +633,18 @@
           if (p.tm === 0 || p.tm === 1) patch.tm = p.tm;
           if (GN_OPTIONS.includes(p.gn)) patch.gn = p.gn;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
-          if (BPM_OPTIONS.includes(p.bpm)) patch.bpm = p.bpm;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
           if (p.nr === 0 || p.nr === 1) patch.nr = p.nr;
           if ([0, 1, 2, 3, 5].includes(p.sp)) patch.sp = p.sp;
           if ([0, 3, 4, 6].includes(p.sj)) patch.sj = p.sj;
+          if ([0, 2, 3].includes(p.ser)) patch.ser = p.ser;
+          if (p.tsel === 0 || p.tsel === 1) patch.tsel = p.tsel;
           if (Object.keys(patch).length) applySettings(patch);
           break;
         }
         case 'go': startCountdown(); break;
-        case 'restart': resetRound(true); publish(); break;
+        case 'restart': resetRound(true, false, true); publish(); break;
+        case 'shake': shakeTeams(); break;
         case 'pause': pauseGame(!!cmd.on); break;
         case 'cfg':
           if (typeof cmd.id === 'string' && CFG_RULES[cmd.key] && (cmd.value === null || CFG_RULES[cmd.key](cmd.value))) {
@@ -699,13 +716,15 @@
       peers[m.id] = {
         last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m, nt: m.nt === 1, pn: m.pn === 1,
         tt: m.tt === 'a' || m.tt === 'b' ? m.tt : '',
+        tp: (m.tk === st.sk && (m.tp === 'a' || m.tp === 'b')) ? m.tp : '', // eigene Teamwahl, gilt nur nach dem letzten Würfeln
+        md: ['touch', 'taster', 'blick'].includes(m.md) ? m.md : '',
         bv: typeof m.bv === 'string' ? m.bv.slice(0, 20) : '',
       };
       applyPeerCfg(m.id); // Vorgaben der Tafel gehen vor
       if (isHost !== true) return;
       const added = addPlayer(m.id);
       let changed = added;
-      if (st.gm === 'staffel' && !added && st.players[m.id] !== undefined && st.ph !== 'play') {
+      if (st.gm === 'staffel' && !added && st.players[m.id] !== undefined && st.ph === 'ready') {
         const pt = teamPref(m.id);
         if (pt >= 0 && st.team[m.id] !== pt) { st.team[m.id] = pt; teamMem[m.id] = pt; changed = true; }
       }
@@ -748,7 +767,6 @@
         st.lights.forEach((l, i) => clearTimeout(autoTimers[i]));
         clearTimeout(finTimer);
         clearTimeout(cdTimer);
-        stopBeat();
         setViewerBanner(true);
       }
     });
@@ -796,8 +814,8 @@
     const view = {
       gm: 'klassik', lights: [], vis: [], autoSince: [], round: -1, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
-      ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1,
-      stars: [], sc: 0, beatT: 0, team: {}, paused: false,
+      ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1, ser: 0, sw: [0, 0], sd: 0, tsel: 0,
+      stars: [], sc: 0, team: {}, paused: false,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -885,7 +903,7 @@
       if (s.round !== view.round) { edges = {}; pulses = []; view.vis = []; view.round = s.round; }
       const first = !view.init;
       view.init = true;
-      view.pulseMs = s.gm === 'rhythmus' ? 60000 / (s.bpm || 90) : 750;
+      view.pulseMs = 750;
       view.lights = s.lights || [];
       view.vis.length = view.lights.length;
       if (s.finale && !view.finale) {
@@ -907,6 +925,10 @@
       view.goal = s.goal;
       view.tc = s.tc || [0, 0];
       view.win = s.win;
+      view.ser = s.ser || 0;
+      view.sw = s.sw || [0, 0];
+      view.sd = s.sd || 0;
+      view.tsel = s.tsel || 0;
       view.stars = s.stars || [];
       if (s.sc > view.sc && !first) {
         // Stern eingesammelt: Funkeln bei dem Gerät, das ihn angetippt hat (das Licht war gerade dort)
@@ -936,6 +958,7 @@
 
     function refreshUi() {
       $('goBtn').hidden = !(isHost === true && view.ph === 'ready' && Object.keys(st.players).length > 0);
+      $('shakeBtn').hidden = !(isHost === true && view.ph === 'ready' && view.gm === 'staffel' && Object.keys(st.players).length > 0);
       $('goBtn').textContent = view.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
     }
 
@@ -966,7 +989,7 @@
         if (!edges[k]) edges[k] = { a: from, b: to, k: 0 };
         edges[k].k = Math.min(edges[k].k + 1, 8);
       }
-      if (soundOn) LK.audio.note(n.slot, view.gm === 'rhythmus' ? 0.42 : 0.5, 1.5);
+      if (soundOn) LK.audio.note(n.slot, 0.5, 1.5);
     }
 
     // Schatz-Licht: goldene Wellen und zwei helle Töne, wenn ein Stern eingesammelt wurde
@@ -1089,7 +1112,6 @@
       // Knoten
       const litBy = {}; // Gerät -> Nummer des Lichts
       view.vis.forEach((id, li) => { if (id) litBy[id] = li; });
-      const beatK = view.gm === 'rhythmus' && view.beatT ? Math.max(0, 1 - (now - view.beatT) / 260) : 0;
       Object.keys(nodes).forEach((id) => {
         const n = nodes[id];
         const col = n.col;
@@ -1098,7 +1120,7 @@
         const li = litBy[id];
         const lit = li !== undefined || (fin && finT < 0.9);
         const ps = n.pop ? Math.max(0, 1 - (now - n.pop) / 600) : 0;
-        const sc = (0.4 + 0.6 * ease(born)) * (1 + 0.35 * ps * ps + (lit ? 0.14 * beatK : 0)) * (lit && !fin ? 1.12 : 1);
+        const sc = (0.4 + 0.6 * ease(born)) * (1 + 0.35 * ps * ps) * (lit && !fin ? 1.12 : 1);
         const r = R * sc;
         const breath = lit ? 0.5 + 0.5 * Math.sin(now / 420) : 0;
         const glowA = (lit ? 0.5 + 0.18 * breath : 0.1) * fade;
@@ -1288,10 +1310,15 @@
         const c = w >= 0 ? LK.TEAM_COLORS[w] : '#ffffff';
         ctx.fillStyle = LK.rgba(c, finA);
         ctx.font = `700 ${Math.round(hr * 0.8)}px ${SANS}`;
-        ctx.fillText(w >= 0 ? `Team ${LK.TEAM_NAMES[w]} gewinnt!` : 'Geschafft!', cx, cy - hr * 0.2);
+        ctx.fillText(w >= 0 ? `Team ${LK.TEAM_NAMES[w]} gewinnt${view.sd ? ' die Serie' : ''}!` : 'Geschafft!', cx, cy - hr * 0.2);
         ctx.fillStyle = `rgba(200,205,240,${finA * 0.85})`;
         ctx.font = `500 ${Math.round(hr * 0.36)}px ${SANS}`;
         ctx.fillText(`${view.tc[0]} : ${view.tc[1]} Weitergaben`, cx, cy + hr * 0.7);
+        if (view.ser > 0) {
+          ctx.fillStyle = `rgba(235,238,255,${finA * 0.9})`;
+          ctx.font = `600 ${Math.round(hr * 0.36)}px ${SANS}`;
+          ctx.fillText(`Serie ${view.sw[0]} : ${view.sw[1]}`, cx, cy + hr * 1.3);
+        }
       } else if (fin) {
         ctx.fillStyle = `rgba(235,238,255,${finA})`;
         ctx.font = `600 ${Math.round(hr * 0.42)}px ${SANS}`;
@@ -1313,6 +1340,20 @@
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
         ctx.fillText(`${view.goalN || ''} ${gm === 'schatz' ? 'Sterne' : 'Weitergaben'}${gm === 'staffel' ? ' pro Team' : ''}`, cx, cy + hr * 0.3);
+        if (gm === 'staffel') {
+          const cnt = [0, 0];
+          Object.keys(view.team || {}).forEach((id) => { if (nodes[id] && !nodes[id].dying) cnt[view.team[id] ? 1 : 0]++; });
+          const small = [0, 1].filter((t) => cnt[t] < 3);
+          ctx.font = `500 ${Math.round(hr * 0.24)}px ${SANS}`;
+          if (view.tsel === 1) {
+            ctx.fillStyle = 'rgba(200,205,240,0.7)';
+            ctx.fillText('Die Schüler wählen ihr Team selbst', cx, cy + hr * 0.7);
+          }
+          if (playersHere > 0 && small.length) {
+            ctx.fillStyle = 'rgba(253,224,71,0.9)';
+            ctx.fillText(`Team ${small.map((t) => `${LK.TEAM_NAMES[t]} (${cnt[t]})`).join(' und ')}: mindestens 3 Geräte sind besser`, cx, cy + hr * (view.tsel === 1 ? 1.05 : 0.7));
+          }
+        }
       } else if (gm === 'schatz') {
         ctx.fillStyle = 'rgba(253,224,71,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.34)}px ${SANS}`;
@@ -1339,6 +1380,17 @@
           ctx.font = `600 ${Math.round(Math.min(W, H) * 0.028)}px ${SANS}`;
           ctx.textAlign = t === 0 ? 'right' : 'left';
           ctx.fillText(`Team ${LK.TEAM_NAMES[t]}  ${view.tc[t] || 0}/${view.goal}`, t === 0 ? x0 + bw : x0, y + bh + Math.min(W, H) * 0.035);
+          // Serie: Leuchtpunkte für gewonnene Runden
+          if (view.ser > 0) {
+            const dr = Math.min(W, H) * 0.012;
+            const dy = y + bh + Math.min(W, H) * 0.035 + dr * 2.6;
+            for (let k = 0; k < view.ser; k++) {
+              const dx = t === 0 ? x0 + bw - dr - k * dr * 3 : x0 + dr + k * dr * 3;
+              ctx.beginPath();
+              ctx.arc(dx, dy, dr, 0, TAU);
+              if ((view.sw[t] || 0) > k) { ctx.fillStyle = LK.rgba(LK.TEAM_COLORS[t], 0.95); ctx.fill(); } else { ctx.strokeStyle = LK.rgba(LK.TEAM_COLORS[t], 0.5); ctx.lineWidth = 2; ctx.stroke(); }
+            }
+          }
         });
         ctx.textAlign = 'center';
       }
@@ -1356,7 +1408,7 @@
       }
     }
 
-    const needsStartView = () => view.tm || view.gm === 'staffel' || view.gm === 'rhythmus';
+    const needsStartView = () => view.tm || view.gm === 'staffel';
 
     function frame(now) {
       draw(now);
@@ -1385,8 +1437,9 @@
       mark('tm', st.tm);
       mark('gn', st.gn);
       mark('nl', st.nl);
-      mark('bpm', st.bpm);
       mark('pen', st.pen);
+      mark('ser', st.ser);
+      mark('tsel', st.tsel);
       mark('nr', st.nr);
       mark('sp', st.sp);
       mark('sj', st.sj);
@@ -1450,7 +1503,7 @@
     });
     $('restartBtn').addEventListener('click', () => {
       if (isHost !== true) return;
-      resetRound(true);
+      resetRound(true, false, true);
       publish();
       $('dlg').close();
     });
@@ -1466,18 +1519,19 @@
     onSetting('tm', 'tm', (v) => parseInt(v, 10));
     onSetting('gn', 'gn', (v) => parseInt(v, 10));
     onSetting('nl', 'nl', (v) => parseInt(v, 10));
-    onSetting('bpm', 'bpm', (v) => parseInt(v, 10));
     onSetting('pen', 'pen', (v) => parseInt(v, 10));
     onSetting('nr', 'nr', (v) => parseInt(v, 10));
     onSetting('sp', 'sp', (v) => parseInt(v, 10));
     onSetting('sj', 'sj', (v) => parseInt(v, 10));
+    onSetting('ser', 'ser', (v) => parseInt(v, 10));
+    onSetting('tsel', 'tsel', (v) => parseInt(v, 10));
 
     // Gerät auf der Tafel antippen: Einstellungen nur für dieses Gerät
     let devId = null;
     function markDev() {
-      const c = cfgAll[devId] || {};
+      const eff = effCfg(devId);
       document.querySelectorAll('#devDlg [data-cfg]').forEach((seg) => {
-        const cur = c[seg.dataset.cfg] === undefined ? '' : String(c[seg.dataset.cfg]);
+        const cur = String(eff[seg.dataset.cfg]);
         seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
       });
     }
@@ -1529,6 +1583,7 @@
     $('devClose').addEventListener('click', () => $('devDlg').close());
 
     $('goBtn').addEventListener('click', startCountdown);
+    $('shakeBtn').addEventListener('click', shakeTeams);
     document.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && !$('goBtn').hidden && !$('dlg').open && document.activeElement === document.body) {
         e.preventDefault();

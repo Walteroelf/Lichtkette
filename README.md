@@ -40,12 +40,11 @@ Auf der Tafel unter ⚙ → **Spielart** wählen. Die Spielart gilt für alle Ge
 | Spielart | Ablauf |
 |---|---|
 | **Lichtkette** | Ein Licht wandert zufällig. Wahlweise als Zeitspiel mit Bestzeit (siehe unten). |
-| **Rhythmus** | Das Licht springt im **Takt** weiter (Tempo: langsam, mittel, schnell). Gibt ein Gerät das Licht weiter, geht es erst auf dem nächsten Schlag los. Jede Eingabe klingt also im Takt, egal wann sie kommt. Wer länger braucht, hält das Licht einfach, der Beat läuft weiter. Alle 3 Weitergaben kommt eine Schicht dazu: Bassdrum, Hi-Hat, Clap, Bass. |
-| **Staffel** | Zwei Teams (Blau und Pink), jedes mit **eigenem Licht**. Wer zuerst die Weitergaben schafft, gewinnt. Die Teams sehen oben ihren Fortschritt. |
+| **Staffel** | Zwei Teams (Blau und Pink), jedes mit **eigenem Licht**. Wer zuerst die Weitergaben schafft, gewinnt. Die Teams sehen oben ihren Fortschritt. Optional als **Serie** (Best of 3 oder 5, Leuchtpunkte für gewonnene Runden) und mit **Teamwahl durch die Schüler**. Vor dem Start würfelt „🎲 Teams neu würfeln“ die Teams neu (Geräte mit „Zeit zählt nicht“ werden gleichmäßig verteilt). Die Teams bleiben sonst von Runde zu Runde gleich. Hat ein Team weniger als 3 Geräte, warnt die Tafel. |
 | **Doppelte Lichter** | Zwei oder drei Lichter gleichzeitig, jedes mit eigener Farbe und Nummer. Ein Gerät hat höchstens ein Licht. Gezählt werden alle Weitergaben zusammen. |
 | **Schatz-Licht** | Bei einzelnen Geräten liegt ein **Schatz** aus 1 bis 5 Sternen (bei etwa jedem zweiten Gerät, höchstens drei Schätze). Hat ein Gerät das Licht und liegt bei ihm ein Schatz, erscheint dort **immer ein gelber Stern**. Nach dem Antippen erscheint der **nächste an anderer Stelle**, und **zum Schluss** gibt man das Licht mit seinem Symbol weiter. **Jeder Stern zählt** zum Ziel (10, 15 oder 20 Sterne, Auto: 8). Die Sterne stellst du in der Spielauswahl ein (siehe unten). Wird das Licht ohne Stern weitergegeben (zum Beispiel durch das automatische Weiterwandern), bleibt der Rest liegen. Das Licht wählt mit etwas Vorliebe Geräte mit Schatz. |
 
-**Start:** Staffel, Rhythmus und Zeitspiel beginnen mit „Los ▶“ und Countdown. Die anderen starten sofort.
+**Start:** Staffel und Zeitspiel beginnen mit „Los ▶“ und Countdown. Die anderen starten sofort.
 
 **Nach einer Runde:** Standardmäßig wartet die Tafel auf den Knopf **„Neue Runde ▶“** (mit Countdown). Du kannst unter ⚙ oder in der Lehrer-Ansicht (**Nach einer Runde**) auf „geht automatisch weiter“ umstellen. Eine laufende Runde abbrechen: ⚙ → Neue Runde starten oder in der Lehrer-Ansicht „Neue Runde“.
 
@@ -67,6 +66,8 @@ Wie ein Gerät die Sterne einsammelt, stellst du pro Gerät ein (Lehrer-Ansicht 
 Ohne Einstellung gilt: **Tippen = Stern extra antippen**, **Taster und Blick = ein Tipp reicht**. Beim Taster werden ein Dauerdruck und ein sehr schneller zweiter Druck (unter 0,3 Sekunden) nicht doppelt gezählt. Auf der Tafel steht beim Stern die Zahl der noch offenen Sterne (×2, ×3 …).
 
 ### Staffel: Teams und „Zeit zählt nicht“
+
+**Serie und Teams:** In der Spielauswahl (Tafel ⚙ oder Lehrer-Ansicht) stellst du ein: **Serie** aus / Best of 3 / Best of 5, und **Teams** zufällig oder **Schüler wählen**. Bei „Schüler wählen“ sieht jedes Gerät vor dem Start zwei große Farbflächen (Blau, Pink). Tippen oder Blick wählt das Team, beim Taster wechselt jeder Druck das Team. Wer nichts wählt, bekommt automatisch eins. „Teams neu würfeln“ setzt alle Wahlen zurück.
 - **Team** wählt jedes Gerät auf dem Startbildschirm: automatisch (die Tafel verteilt gleichmäßig), Blau oder Pink. Damit lassen sich Teams so mischen, dass beide ähnlich fit sind.
 - **Zeit zählt nicht:** Hat ein solches Gerät das Licht, **wartet das andere Team** („Kurze Pause …“, auf der Tafel ein Pause-Zeichen), bis es weitergegeben hat. Die Weitergabe zählt für das Team mit. **Achtung:** Dadurch kostet dieses Team für diese Weitergabe keine Zeit, ein Team mit mehr solchen Geräten ist im Vorteil. Am fairsten ist es, sie gleichmäßig auf beide Teams zu verteilen.
 
@@ -92,16 +93,16 @@ Auf dem Startbildschirm lässt sich das unter **Tippfläche** ändern:
 - **fest**: ganzer Bildschirm beim Tippen, Kreis in der Mitte bei Blick/Maus
 - **springender Punkt**: springt auch bei Blick/Maus
 
-Der Punkt ist etwas kleiner als der feste Kreis. Seine **Größe** (klein, normal, groß) stellt die Lehrkraft pro Gerät auf der Tafel ein (siehe unten).
+Der Punkt ist etwas kleiner als der feste Kreis. Er ist bei Tippen von Anfang an klein eingestellt. Seine **Größe** (klein, normal, groß, sehr groß) stellt die Lehrkraft pro Gerät auf der Tafel ein (siehe unten).
 
 ## Einstellungen pro Gerät von der Tafel aus
 
-Auf der Tafel ein **Gerät antippen** (Knoten mit Form und Farbe). Es öffnet sich ein Fenster nur für dieses Gerät. Was dort eingestellt wird, **geht vor, was am Gerät steht**, und gilt sofort. „wie am Gerät“ heißt: Das Gerät entscheidet selbst.
+Auf der Tafel ein **Gerät antippen** (Knoten mit Form und Farbe). Es öffnet sich ein Fenster nur für dieses Gerät. Markiert ist, was gerade gilt (Standardwert, bis du etwas änderst). Was dort eingestellt wird, **geht vor, was am Gerät steht**, und gilt sofort. „Alles zurücksetzen“ stellt die Standardwerte wieder her.
 
 | Einstellung | Wirkung |
 |---|---|
 | Tippfläche | fest oder springender Punkt |
-| Größe des Punkts oder Kreises | klein, normal, groß |
+| Größe des Punkts oder Kreises | klein, normal (Standard bei Tippen), groß, sehr groß |
 | Fehltipps | ohne oder mit Strafe (nur Staffel, siehe unten) |
 | Zeit dieses Geräts | zählt oder zählt nicht |
 | Licht wandert weiter nach | nie, 10 s, 30 s |

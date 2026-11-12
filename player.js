@@ -65,7 +65,14 @@
     const eNoTime = () => (cfg().nt !== undefined ? cfg().nt === 1 : noTime);
     const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
     const eTeam = () => { const t = cfg().tt; if (t === 'a' || t === 'b') return t; return t === 'x' ? '' : team; };
-    const eSize = () => cfg().sz || 1;
+    // Größe: Bei Tippen (springender Punkt) ist der Standard kleiner, sonst normal
+    const eSize = () => cfg().sz || (useRandom() ? 0.75 : 1);
+    // Staffel: Die Schüler wählen ihr Team selbst (wenn die Tafel das eingestellt hat)
+    let pickTeam = '';   // 'a' | 'b' | ''
+    let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
+    const pickActive = () => !!(st && Date.now() - lastStateAt < 12000 && st.gm === 'staffel' && st.tsel === 1 && st.ph === 'ready'
+      && st.players[ID] !== undefined && cfg().tt === undefined && !st.finale);
+    const curPick = () => pickTeam || (st && st.team && st.team[ID] === 1 ? 'b' : 'a');
     const starHere = () => !!(st && st.gm === 'schatz' && st.stars && st.stars.includes(ID));
     // Der Stern wird automatisch eingesammelt, wenn das Gerät es so eingestellt hat (die Tafel kann das vorgeben)
     const starAuto = () => {
@@ -335,7 +342,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
+      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -347,6 +354,7 @@
       if (!s.players || typeof s.seq !== 'number' || !Array.isArray(s.lights)) return;
       st = s;
       lastStateAt = Date.now();
+      if ((s.sk || 0) !== seenSk) { seenSk = s.sk || 0; if (pickTeam) { pickTeam = ''; } sendHb(); }
       render();
     });
     setInterval(() => { if (active) render(); }, 1500);
@@ -417,6 +425,13 @@
       // Wird der Stern jetzt automatisch eingesammelt (Einstellung geändert) und das Licht war schon getippt: weitergeben
       if (iHold && holding && lightTapped && treasureHere() && starAuto() && light && !light.z && !st.paused) finishPass(light, true);
 
+      const pa = pickActive();
+      $('teamPick').hidden = !pa;
+      if (pa) {
+        const cp = curPick();
+        document.querySelectorAll('[data-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pick === cp)));
+        $('pickHint').textContent = mode === 'taster' ? 'Jeder Druck wechselt das Team.' : 'Tippe auf dein Team.';
+      }
       scrPlay.classList.toggle('on', iHold);
       scrPlay.classList.toggle('fin', isFin);
       $('hold').classList.toggle('locked', iHold && (performance.now() < lockUntil || paused));
@@ -428,7 +443,7 @@
       if (!online) msg = 'Keine Verbindung …';
       else if (!fresh) msg = 'Warte auf die Tafel …';
       else if (slot < 0) msg = 'Verbinde …';
-      else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? 'Dein Team gewinnt!' : 'Geschafft! Gut gespielt') : 'Geschafft!';
+      else if (isFin) msg = (st.gm === 'staffel' && st.win >= 0 && myTeam !== undefined) ? (st.win === myTeam ? (st.sd ? 'Dein Team gewinnt die Serie!' : 'Dein Team gewinnt!') : 'Geschafft! Gut gespielt') : 'Geschafft!';
       else if (st.paused) msg = 'Pause';
       else if (performance.now() < flashUntil) msg = flashMsg;
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
@@ -455,6 +470,15 @@
       }
       $('prog').firstElementChild.style.width = `${Math.min(100, frac * 100)}%`;
     }
+
+    // ---------- Team wählen (Staffel) ----------
+    function choose(t) {
+      if (!pickActive() || (t !== 'a' && t !== 'b')) return;
+      pickTeam = t;
+      sendHb();
+      render();
+    }
+    document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => choose(b.dataset.pick)));
 
     // ---------- Das Licht weitergeben ----------
     // Licht-Fläche getippt (oder Taster gedrückt, oder Kreis angeschaut)
@@ -629,7 +653,7 @@
     hold.addEventListener('click', confirm);
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;
-      if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) confirm(); }
+      if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) { if (pickActive()) choose(curPick() === 'a' ? 'b' : 'a'); else confirm(); } }
     });
     // Der gelbe Stern ist ein eigenes Ziel (liegt über dem Licht-Ziel, löst das Licht nicht aus)
     const starBtn = $('star');
