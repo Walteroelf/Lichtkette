@@ -32,6 +32,10 @@
     let lastPos = null;
     let lastMiss = 0;
     let lastConfirm = 0;
+    // Nach dem Weitergeben wartet das Gerät kurz auf die Tafel. Solange dieses Licht noch im Stand steht, wird nicht neu scharf gestellt.
+    let passedToken = null;
+    let passedAt = 0;
+    const WAIT_TAFEL_MS = 2500;
     let missUntil = 0;
     // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, müssen erst alle Sterne angetippt werden (immer einer sichtbar,
     // der nächste erscheint an anderer Stelle), zum Schluss gibt man das Licht weiter. Bei nur einem Stern darf das Licht auch zuerst kommen.
@@ -403,7 +407,11 @@
       // Muster nachspielen und Geheime Reihenfolge: Tippen ohne Licht (das Licht ist dort nur ein Teil des Spiels)
       const tapGm = !!(fresh && slot >= 0 && (st.gm === 'muster' || st.gm === 'geheim'));
       const tg = tapGame(tapGm);
-      const iHold = !tapGm && !!(fresh && slot >= 0 && light && !st.finale && st.ph === 'play');
+      // Gerade weitergegeben, die Tafel hat es aber noch nicht übernommen: nicht neu scharf stellen (sonst zählt der nächste Druck doppelt
+      // oder geht in der Sperre verloren). Kam nach 2,5 s nichts, ist die Meldung vermutlich verloren: dann gleich wieder bereit.
+      const waitingTafel = !!(light && light.s === passedToken && performance.now() - passedAt < WAIT_TAFEL_MS);
+      const retryHold = !!(light && light.s === passedToken && !waitingTafel);
+      const iHold = !tapGm && !waitingTafel && !!(fresh && slot >= 0 && light && !st.finale && st.ph === 'play');
       const isFin = !!(fresh && st.finale && slot >= 0);
       const paused = !!(iHold && (light.z || st.paused)); // Staffel: das andere Team hat Vorrang. Oder die Lehrkraft hat pausiert.
       const myTeam = fresh && st.team ? st.team[ID] : undefined;
@@ -428,7 +436,7 @@
         lastStarPos = null;
         $('star').dataset.placed = '';
         updateTapVisuals();
-        lockUntil = performance.now() + lockMs();
+        lockUntil = performance.now() + (retryHold ? 0 : lockMs());
         const hold = $('hold');
         if (useRandom()) {
           placeTarget();
@@ -662,6 +670,9 @@
       const done = starCount;
       starCount = 0;
       lastConfirm = performance.now();
+      passedToken = light.s;
+      passedAt = performance.now();
+      setTimeout(render, WAIT_TAFEL_MS + 60); // danach prüfen, ob die Tafel das Licht übernommen hat
       const s = light.s;
       const epoch = st.epoch;
       const k = collect ? 1 : 0;
@@ -684,7 +695,9 @@
       $('star').hidden = true;
       updateTapVisuals();
       scrPlay.classList.remove('on');
-      $('msg').textContent = (collect || done > 0) ? 'Stern eingesammelt ★' : 'Weitergegeben ✓';
+      flashMsg = (collect || done > 0) ? 'Stern eingesammelt ★' : 'Weitergegeben ✓';
+      flashUntil = performance.now() + 1200;
+      $('msg').textContent = flashMsg;
     }
 
     // c = so viele Sterne wurden angetippt (die Tafel zählt sie nach, falls eine einzelne Meldung verloren ging)
