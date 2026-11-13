@@ -1250,6 +1250,7 @@
     }
 
     function arrive(li, to, from) {
+      view.vis[li] = to;
       const n = nodes[to];
       if (!n) return;
       const now = performance.now();
@@ -1404,6 +1405,12 @@
       view.vis.forEach((id, li) => { if (id) litBy[id] = li; });
       // Das Gerät, zu dem das Licht gerade fliegt, leuchtet schon (es kann ja gleich weitergeben)
       pulses.forEach((p) => { if (litBy[p.b] === undefined) litBy[p.b] = p.li; });
+      // Maßgeblich ist immer der aktuelle Stand: Wer das Licht hat, leuchtet. Wer es nicht mehr hat, nicht, egal was die Animation gerade macht.
+      view.lights.forEach((l, li) => { if (l.h && nodes[l.h] && !nodes[l.h].dying) litBy[l.h] = li; });
+      if (!fin) {
+        const holders = new Set(view.lights.map((l) => l.h).filter(Boolean));
+        Object.keys(litBy).forEach((id) => { if (!holders.has(id) && !(view.mu && view.mu.cur === id)) delete litBy[id]; });
+      }
       Object.keys(nodes).forEach((id) => {
         const n = nodes[id];
         const col = n.col;
@@ -1415,13 +1422,13 @@
         const sc = (0.4 + 0.6 * ease(born)) * (1 + 0.35 * ps * ps) * (lit && !fin ? 1.12 : 1);
         const r = R * sc;
         const breath = lit ? 0.5 + 0.5 * Math.sin(now / 420) : 0;
-        const glowA = (lit ? 0.5 + 0.18 * breath : 0.1) * fade;
-        const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 3.4);
+        const glowA = (lit ? 0.62 + 0.2 * breath : 0.08) * fade;
+        const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * (lit ? 4 : 3.4));
         gr.addColorStop(0, LK.rgba(col, glowA));
         gr.addColorStop(1, LK.rgba(col, 0));
         ctx.fillStyle = gr;
         ctx.beginPath();
-        ctx.arc(n.x, n.y, r * 3.4, 0, TAU);
+        ctx.arc(n.x, n.y, r * (lit ? 4 : 3.4), 0, TAU);
         ctx.fill();
         LK.shapePath(ctx, n.slot, n.x, n.y, r);
         ctx.fillStyle = LK.rgba(col, (lit ? 0.95 : 0.22) * fade);
