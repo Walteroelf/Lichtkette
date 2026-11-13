@@ -161,6 +161,12 @@ Die **Tafel** zeigt nur, was alle sehen dürfen: keine Namen und keine Gerätein
 - Das iPad hat eine feste, zufällige Kennung im Browser. Wird dort der Website-Speicher gelöscht oder ein anderer Browser benutzt, ist es ein neues Gerät, und der Name muss neu eingetragen werden. Wechselt ein Kind das iPad, hängst du den Namen um. Den Gerätenamen eines iPads kann eine Webseite nicht auslesen.
 - Läuft die Spielleitung nur auf dem Tafel-Rechner, darf der nicht einschlafen.
 
+## Vollbild
+
+- **Spielgeräte:** Oben rechts gibt es ein kleines **⛶** zum Vollbild (iPad und Browser am PC). Bei Blicksteuerung steht es nur auf der Auswahl-Seite, damit nichts aus Versehen auslöst. Auf dem iPhone erlaubt Safari kein Vollbild.
+- **iPad ohne Adressleiste:** In Safari **Teilen → Zum Home-Bildschirm**. Die Seite startet dann wie eine App im Vollbild, mit dem Raum, den du beim Hinzufügen geöffnet hattest.
+- **Tafel:** Der Vollbild-Knopf ist dort schon vorhanden.
+
 ## Staffel: Strafpause bei Fehltipps
 
 - **Freiwillig und zweifach abgesichert:** Auf der Tafel muss die **Strafpause** eingeschaltet sein (⚙ → Staffel → aus, 2 s oder 4 s), **und** das Gerät muss auf „mit Strafe“ stehen (am Gerät selbst oder von der Tafel vorgegeben). Standard ist beides aus.

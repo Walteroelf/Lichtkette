@@ -1114,7 +1114,7 @@
       if (s.round !== view.round) { edges = {}; pulses = []; view.vis = []; view.round = s.round; }
       const first = !view.init;
       view.init = true;
-      view.pulseMs = 750;
+      view.pulseMs = 450; // kurzer Flug: Das Zielsymbol leuchtet schon ab dem Abflug
       view.lights = s.lights || [];
       view.vis.length = view.lights.length;
       if (s.finale && !view.finale) {
@@ -1217,6 +1217,9 @@
     }
 
     function startPulse(li, from, to) {
+      // Wurde schon weitergegeben, bevor das Licht ankam: Die Ankunft nachholen, damit Ton, Spur und Welle nicht fehlen
+      const old = pulses.find((p) => p.li === li);
+      if (old && nodes[old.b]) arrive(li, old.b, old.a);
       view.vis[li] = null;
       view.fin = null;
       pulses = pulses.filter((p) => p.li !== li);
@@ -1377,6 +1380,8 @@
       // Knoten
       const litBy = {}; // Gerät -> Nummer des Lichts
       view.vis.forEach((id, li) => { if (id) litBy[id] = li; });
+      // Das Gerät, zu dem das Licht gerade fliegt, leuchtet schon (es kann ja gleich weitergeben)
+      pulses.forEach((p) => { if (litBy[p.b] === undefined) litBy[p.b] = p.li; });
       Object.keys(nodes).forEach((id) => {
         const n = nodes[id];
         const col = n.col;

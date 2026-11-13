@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261113-1115">
+<meta name="build" content="20261113-1140">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -29,7 +31,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261113-1115">
+<link rel="stylesheet" href="style.css?v=20261113-1140">
 </head>
 <body>
 
@@ -140,6 +142,7 @@
 
 <!-- Spieler: Eingabeart wählen -->
 <section id="scr-mode" class="scr" hidden>
+  <button type="button" class="fsbtn mode" aria-label="Vollbild" tabindex="-1" hidden>⛶</button>
   <h1>Wie spielst du?</h1>
   <div class="cards">
     <button class="card" data-mode="touch"><span class="ico">👆</span><b>Tippen</b><small>Mit dem Finger irgendwo auf den Bildschirm tippen.<br>Für iPad und Touchscreen.</small></button>
@@ -231,6 +234,7 @@
   <div id="prog"><i></i></div>
   <span id="conn" class="dot bad"></span>
   <button id="change" aria-label="Eingabeart ändern">⋯</button>
+  <button id="fsPlay" type="button" class="fsbtn" aria-label="Vollbild" tabindex="-1" hidden>⛶</button>
   <div id="teamPick" hidden>
     <p id="pickHint">Tippe auf dein Team.</p>
     <button type="button" data-pick="a" class="pick a"><b>Blau</b><small>✓ dein Team</small></button>
@@ -391,13 +395,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261113-1115"></script>
-<script src="lib/qrcode.js?v=20261113-1115"></script>
-<script src="shared.js?v=20261113-1115"></script>
-<script src="net.js?v=20261113-1115"></script>
-<script src="board.js?v=20261113-1115"></script>
-<script src="player.js?v=20261113-1115"></script>
-<script src="teacher.js?v=20261113-1115"></script>
-<script src="main.js?v=20261113-1115"></script>
+<script src="lib/mqtt.min.js?v=20261113-1140"></script>
+<script src="lib/qrcode.js?v=20261113-1140"></script>
+<script src="shared.js?v=20261113-1140"></script>
+<script src="net.js?v=20261113-1140"></script>
+<script src="board.js?v=20261113-1140"></script>
+<script src="player.js?v=20261113-1140"></script>
+<script src="teacher.js?v=20261113-1140"></script>
+<script src="main.js?v=20261113-1140"></script>
 </body>
 </html>

@@ -302,6 +302,25 @@
       showMode();
     }));
 
+    // Vollbild (wo der Browser es erlaubt, auf dem iPhone nicht). Tipp: Auf dem iPad hilft auch "Zum Home-Bildschirm".
+    const rootEl = document.documentElement;
+    const fsOk = !!(rootEl.requestFullscreen || rootEl.webkitRequestFullscreen);
+    function toggleFullscreen() {
+      const d = document;
+      try {
+        if (d.fullscreenElement || d.webkitFullscreenElement) {
+          (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+        } else {
+          const p = (rootEl.requestFullscreen || rootEl.webkitRequestFullscreen).call(rootEl);
+          if (p && p.catch) p.catch(() => {});
+        }
+      } catch (e) { /* nicht erlaubt */ }
+    }
+    document.querySelectorAll('.fsbtn').forEach((b) => {
+      b.hidden = !fsOk || b.id === 'fsPlay';
+      b.addEventListener('click', () => { toggleFullscreen(); b.blur(); });
+    });
+
     // Zufällige Stelle für den Punkt: nicht in der Mitte, nicht am Rand, nicht wieder an der letzten Stelle
     function placeTarget() {
       const hold = $('hold');
@@ -344,6 +363,7 @@
       $('hold').innerHTML = ''; // das Symbol im Punkt gehört nur zum springenden Punkt, sonst wird es riesig und schwarz
       if (!useRandom()) clearTarget();
       $('hint').textContent = hintText();
+      $('fsPlay').hidden = !fsOk || mode === 'blick'; // bei Augensteuerung kein Knopf, der aus Versehen ausgelöst wird
       $('change').hidden = mode === 'blick'; // bei Augensteuerung kein kleiner Knopf, der aus Versehen ausgelöst wird
       sendHb();
       render();
