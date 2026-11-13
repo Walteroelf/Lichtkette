@@ -174,6 +174,7 @@
     // ---------- Steuerung ----------
     $('tPause').addEventListener('click', () => { if (priv) send({ c: 'pause', on: !priv.paused }); });
     $('tGo').addEventListener('click', () => send({ c: 'go' }));
+    $('tMuAgain').addEventListener('click', () => send({ c: 'muagain' }));
     $('tRestart').addEventListener('click', () => { if (window.confirm('Die laufende Runde abbrechen und neu starten?')) send({ c: 'restart' }); });
 
     const setting = (attr, key, parse) => document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
@@ -264,7 +265,9 @@
       const phase = p.finale ? 'Finale' : (p.paused ? 'pausiert' : (PHASE[p.ph] || ''));
       const serie = LK.isTeamGm(p.gm) && p.ser && p.sw ? ` · Serie ${p.sw[0]} : ${p.sw[1]}` : '';
       $('tSummary').textContent = `${TITLES[p.gm] || ''}${p.gm === 'klassik' && p.tm ? ' (Zeitspiel)' : ''}${serie} · Runde ${p.round} · ${phase} · ${p.n} ${p.n === 1 ? 'Gerät' : 'Geräte'}`;
-      $('tGo').hidden = !(p.ph === 'ready' && p.n > 0);
+      const muPh = (p.gm === 'muster' && p.ph === 'play' && !p.finale) ? p.mup : '';
+      $('tGo').hidden = !((p.ph === 'ready' && p.n > 0) || muPh === 'ready' || muPh === 'shown');
+      $('tMuAgain').hidden = muPh !== 'shown';
       const canPause = p.ph === 'play' && !p.finale;
       $('tPause').disabled = !canPause;
       $('tPause').textContent = p.paused ? '▶ Weiter' : '⏸ Pause';
@@ -284,7 +287,7 @@
       $('tGnVal').textContent = p.gn ? String(p.gn) : `Auto (${p.goal})`;
       mark('ttsel', p.tsel);
       $('tShake').hidden = !(LK.isTeamGm(p.gm) && p.ph === 'ready' && p.n > 0);
-      $('tGo').textContent = p.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
+      $('tGo').textContent = muPh === 'ready' ? (p.mag ? 'Noch einmal zeigen ▶' : 'Reihenfolge zeigen ▶') : (muPh === 'shown' ? 'Jetzt nachspielen ▶' : (p.round > 1 ? 'Neue Runde ▶' : 'Los ▶'));
       document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = !el.dataset.tfor.split(' ').includes(p.gm); });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';
       $('tGnLabel').hidden = p.gm === 'basal';

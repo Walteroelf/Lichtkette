@@ -526,7 +526,9 @@
         if (!mu) return r;
         const inSq = mu.sq.includes(ID);
         if (mu.ph === 'wait') r.msg = 'Es braucht mindestens zwei Geräte';
-        else if (mu.ph === 'show') { r.on = mu.cur === ID; r.msg = r.on ? 'Das bist du!' : (mu.ag ? 'Noch mal ansehen' : 'Schau auf die Tafel und merk dir die Reihenfolge'); }
+        else if (mu.ph === 'ready') r.msg = 'Gleich zeigt die Tafel eine Reihenfolge';
+        else if (mu.ph === 'shown') r.msg = 'Habt ihr sie euch gemerkt? Gleich seid ihr dran';
+        else if (mu.ph === 'show') { r.on = mu.cur === ID; r.msg = r.on ? 'Das bist du!' : 'Schau auf die Tafel und merk dir die Reihenfolge'; }
         else if (mu.ph === 'go') { r.target = inSq; r.msg = inSq ? 'Tippe, wenn du dran bist' : 'Diesmal bist du nicht dabei'; }
         else if (mu.ph === 'next') r.msg = 'Richtig!';
         else if (mu.ph === 'again') r.msg = 'Nicht ganz. Gleich noch einmal';
@@ -548,6 +550,7 @@
       if (!tg.target || tg.locked || performance.now() - lastTapSent < 400) return;
       lastTapSent = performance.now();
       net.send('tap', { id: ID, epoch: st.epoch });
+      if (sound && slot >= 0) LK.audio.note(slot, 0.3, 0.9); // der feste Ton dieses Symbols
       if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* nicht überall erlaubt */ } }
       flashMsg = 'Getippt ✓';
       flashUntil = performance.now() + 700;
@@ -557,6 +560,14 @@
 
     function confirm() {
       if (st && (st.gm === 'muster' || st.gm === 'geheim')) { tapAnywhere(); return; }
+      if (holding && mode === 'taster' && st && performance.now() < lockUntil) {
+        // Zu früh gedrückt: kurz sagen, dass der Druck noch nicht zählt
+        flashMsg = 'Einen Moment …';
+        flashUntil = performance.now() + 500;
+        render();
+        setTimeout(render, 550);
+        return;
+      }
       if (!holding || performance.now() < lockUntil || !st) return;
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
@@ -724,7 +735,10 @@
     const hold = $('hold');
     // Touch: sofort beim Berühren. Taster und Blick senden einen Klick bzw. eine Taste.
     hold.addEventListener('pointerdown', (e) => { if (mode === 'touch' && e.pointerType === 'touch') { e.preventDefault(); confirm(); } });
-    hold.addEventListener('click', confirm);
+    // Taster mit Tastatur: Der Browser löst nach dem Loslassen der Taste zusätzlich einen Klick auf dem Knopf aus (detail 0).
+    // Der zählte sonst als zweiter Druck, vor allem bei längerem Drücken. Nur der Tastendruck selbst zählt.
+    const keyClick = (e) => mode === 'taster' && e.detail === 0 && sw.kind !== 'tap';
+    hold.addEventListener('click', (e) => { if (keyClick(e)) return; confirm(); });
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;
       if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) { if (pickActive()) choose(curPick() === 'a' ? 'b' : 'a'); else confirm(); } }
@@ -733,7 +747,7 @@
     const starBtn = $('star');
     starBtn.innerHTML = LK.shapeSvg(6);
     starBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.pointerType === 'touch') { e.preventDefault(); tapStar(); } });
-    starBtn.addEventListener('click', (e) => { e.stopPropagation(); tapStar(); });
+    starBtn.addEventListener('click', (e) => { e.stopPropagation(); if (keyClick(e)) return; tapStar(); });
 
     // Fehltipp (nur Staffel, nur wenn die Tafel Strafpause eingeschaltet hat und dieses Gerät mitmacht):
     // ein Tipp im falschen Moment (kein Licht da) oder neben den Punkt bzw. Kreis

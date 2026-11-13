@@ -126,7 +126,7 @@
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
     const isTm = () => st.tm === 1 && st.gm === 'klassik';
-    const needsStart = () => isTm() || LK.isTeamGm(st.gm) || ['dunkel', 'muster', 'geheim'].includes(st.gm);
+    const needsStart = () => isTm() || LK.isTeamGm(st.gm) || ['dunkel', 'geheim'].includes(st.gm);
     const isNt = (id) => !!(peers[id] && peers[id].nt);
 
     function freeSlot(id) {
@@ -419,16 +419,40 @@
         publish();
         return;
       }
-      st.mu = { ph: 'show', sq: keep ? old.sq : muBuild(lv), i: 0, cur: null, fk: old.fk || 0, tk: old.tk || 0, tl: null, bad: old.bad || 0, bl: old.bl || null, lv, ag: keep ? 1 : 0 };
+      // Die Spielleitung bestimmt den Ablauf: erst "Reihenfolge zeigen", dann "Jetzt nachspielen"
+      st.mu = { ph: 'ready', sq: keep ? old.sq : muBuild(lv), i: 0, cur: null, fk: old.fk || 0, tk: old.tk || 0, tl: null, bad: old.bad || 0, bl: old.bl || null, lv, ag: keep ? 1 : 0 };
       st.seq++;
       publish();
-      muTimer = setTimeout(() => muShow(0), 1200);
+    }
+    // Spielleitung: Reihenfolge abspielen
+    function muShowNow() {
+      const mu = st.mu;
+      if (isHost !== true || st.gm !== 'muster' || !mu || (mu.ph !== 'ready' && mu.ph !== 'shown') || st.finale || st.paused) return;
+      clearTimeout(muTimer);
+      mu.ph = 'show';
+      mu.cur = null;
+      mu.i = 0;
+      publish();
+      muTimer = setTimeout(() => muShow(0), 900);
+    }
+    // Spielleitung: Jetzt spielen die Schüler die Reihenfolge nach
+    function muGoNow() {
+      const mu = st.mu;
+      if (isHost !== true || st.gm !== 'muster' || !mu || mu.ph !== 'shown' || st.finale || st.paused) return;
+      mu.ph = 'go';
+      mu.i = 0;
+      publish();
+    }
+    function muAdvance() {
+      if (!st.mu) return;
+      if (st.mu.ph === 'ready') muShowNow();
+      else if (st.mu.ph === 'shown') muGoNow();
     }
     function muShow(k) {
       const mu = st.mu;
       if (isHost !== true || st.gm !== 'muster' || !mu || st.finale) return;
       if (st.paused) { muTimer = setTimeout(() => muShow(k), 500); return; }
-      if (k >= mu.sq.length) { mu.cur = null; mu.ph = 'go'; mu.i = 0; publish(); muArmIdle(); return; }
+      if (k >= mu.sq.length) { mu.cur = null; mu.ph = 'shown'; mu.i = 0; publish(); return; }
       mu.cur = mu.sq[k];
       mu.fk++;
       publish();
@@ -438,11 +462,6 @@
         publish();
         muTimer = setTimeout(() => muShow(k + 1), 350);
       }, 850);
-    }
-    function muArmIdle() {
-      clearTimeout(muIdle);
-      // Kommt lange kein richtiger Tipp, läuft die Folge noch einmal ab
-      muIdle = setTimeout(() => { if (isHost === true && st.gm === 'muster' && st.mu && st.mu.ph === 'go' && !st.finale) muStart(st.mu.lv, true); }, 30000);
     }
     function muTap(id) {
       const mu = st.mu;
@@ -461,13 +480,11 @@
           return;
         }
         publish();
-        muArmIdle();
       } else {
         // Falsche Reihenfolge: ohne Strafe, die Folge läuft noch einmal ab
         mu.bad++;
         mu.bl = id;
         mu.ph = 'again';
-        clearTimeout(muIdle);
         publish();
         muTimer = setTimeout(() => muStart(mu.lv, true), 1800);
       }
@@ -785,6 +802,7 @@
       const now = Date.now();
       return {
         t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, dkv: st.dkv, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
+        mup: st.mu ? st.mu.ph : '', mag: st.mu ? st.mu.ag : 0,
         ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
@@ -850,7 +868,8 @@
           if (Object.keys(patch).length) applySettings(patch);
           break;
         }
-        case 'go': startCountdown(); break;
+        case 'go': if (st.gm === 'muster' && st.ph === 'play') muAdvance(); else startCountdown(); break;
+        case 'muagain': muShowNow(); break;
         case 'restart': resetRound(true, false, true); publish(); break;
         case 'shake': shakeTeams(); break;
         case 'pause': pauseGame(!!cmd.on); break;
@@ -1153,8 +1172,7 @@
         if (view.mu && pmu) {
           if (view.mu.cur && pmu.fk !== view.mu.fk) flashNode(view.mu.cur, false);
           if (view.mu.tl && pmu.tk !== view.mu.tk) {
-            flashNode(view.mu.tl, false, true);
-            if (soundOn) LK.audio.chime(Math.max(0, view.mu.i - 1)); // jeder richtige Tipp klingt höher
+            flashNode(view.mu.tl, false); // jedes Symbol hat seinen festen Ton, beim Zeigen und beim Nachspielen
           }
           if (view.mu.ph === 'next' && pmu.ph !== 'next' && soundOn) LK.audio.arp();
           if (view.mu.bl && pmu.bad !== view.mu.bad) flashNode(view.mu.bl, true);
@@ -1190,10 +1208,14 @@
 
     function refreshUi() {
       const bildFin = view.gm === 'bild' && view.finale;
-      $('goBtn').hidden = !(isHost === true && (view.ph === 'ready' || bildFin) && Object.keys(st.players).length > 0);
+      // Muster nachspielen: Die Tafel ist die Spielleitung (erst zeigen, dann nachspielen lassen)
+      const muPh = (view.gm === 'muster' && view.ph === 'play' && !view.finale && view.mu) ? view.mu.ph : '';
+      const muBtn = muPh === 'ready' || muPh === 'shown';
+      $('goBtn').hidden = !(isHost === true && (view.ph === 'ready' || bildFin || muBtn) && Object.keys(st.players).length > 0);
       $('saveBtn').hidden = !(view.gm === 'bild' && view.chain > 0);
-      $('shakeBtn').hidden = !(isHost === true && view.ph === 'ready' && LK.isTeamGm(view.gm) && Object.keys(st.players).length > 0);
-      $('goBtn').textContent = (view.round > 1 || bildFin) ? 'Neue Runde ▶' : 'Los ▶';
+      $('shakeBtn').hidden = !(isHost === true && ((view.ph === 'ready' && LK.isTeamGm(view.gm)) || muPh === 'shown') && Object.keys(st.players).length > 0);
+      $('shakeBtn').textContent = muPh === 'shown' ? 'Noch einmal zeigen' : '🎲 Teams neu würfeln';
+      $('goBtn').textContent = muPh === 'ready' ? (view.mu.ag ? 'Noch einmal zeigen ▶' : 'Reihenfolge zeigen ▶') : (muPh === 'shown' ? 'Jetzt nachspielen ▶' : ((view.round > 1 || bildFin) ? 'Neue Runde ▶' : 'Los ▶'));
     }
 
     const fmtTime = (ms) => {
@@ -1698,7 +1720,7 @@
         ctx.fillText(`${view.chain} / ${view.goal}`, cx, cy);
       } else if (gm === 'muster' && view.mu) {
         const mu = view.mu;
-        const txt = { wait: 'Es braucht mindestens zwei Geräte', show: mu.ag ? 'Noch mal ansehen' : 'Merk dir die Reihenfolge', go: 'Jetzt ihr! Wer war zuerst dran?', again: 'Nicht ganz. Gleich noch einmal', next: 'Richtig!' }[mu.ph] || '';
+        const txt = { wait: 'Es braucht mindestens zwei Geräte', ready: mu.ag ? 'Noch einmal ansehen?' : 'Bereit? Gleich kommt eine Reihenfolge', show: 'Merkt euch die Reihenfolge', shown: 'Habt ihr sie euch gemerkt?', go: 'Jetzt ihr! Wer war zuerst dran?', again: 'Nicht ganz. Gleich noch einmal', next: 'Richtig!' }[mu.ph] || '';
         ctx.fillStyle = mu.ph === 'next' ? 'rgba(110,231,183,0.95)' : 'rgba(235,238,255,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.4)}px ${SANS}`;
         ctx.fillText(txt, cx, cy - hr * 0.2);
@@ -1811,7 +1833,7 @@
       }
     }
 
-    const needsStartView = () => view.tm || LK.isTeamGm(view.gm) || ['dunkel', 'muster', 'geheim'].includes(view.gm);
+    const needsStartView = () => view.tm || LK.isTeamGm(view.gm) || ['dunkel', 'geheim'].includes(view.gm);
 
     function frame(now) {
       draw(now);
@@ -1999,11 +2021,12 @@
     $('devClose').addEventListener('click', () => $('devDlg').close());
 
     const goOrNext = () => {
+      if (st.gm === 'muster' && st.ph === 'play' && !st.finale) { muAdvance(); return; }
       if (st.gm === 'bild' && st.finale) { if (isHost === true) { resetRound(true, true); publish(); } return; }
       startCountdown();
     };
     $('goBtn').addEventListener('click', goOrNext);
-    $('shakeBtn').addEventListener('click', shakeTeams);
+    $('shakeBtn').addEventListener('click', () => { if (st.gm === 'muster') muShowNow(); else shakeTeams(); });
     // Lichtbild als Bild speichern
     $('saveBtn').addEventListener('click', () => {
       try {
