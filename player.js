@@ -59,6 +59,7 @@
       const c = cfg();
       if (c.rnd === 1) return 'rnd';
       if (c.rnd === 0) return 'full';
+      if (st && st.gm === 'basal') return 'full'; // Basal: immer eine feste Fläche
       return target || (mode === 'blick' ? 'full' : 'rnd');
     };
     const eWait = () => (cfg().w !== undefined ? cfg().w : wait);
@@ -66,7 +67,9 @@
     const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
     const eTeam = () => { const t = cfg().tt; if (t === 'a' || t === 'b') return t; return t === 'x' ? '' : team; };
     // Größe: Bei Tippen (springender Punkt) ist der Standard kleiner, sonst normal
-    const eSize = () => cfg().sz || (useRandom() ? 0.75 : 1);
+    const eSize = () => cfg().sz || (st && st.gm === 'basal' ? 1.4 : (useRandom() ? 0.75 : 1));
+    // Sperre nach Ankunft des Lichts: bei Basal kurz, sonst je nach Eingabeart
+    const lockMs = () => (st && st.gm === 'basal' && mode !== 'blick' ? 250 : MODES[mode].lock);
     // Staffel: Die Schüler wählen ihr Team selbst (wenn die Tafel das eingestellt hat)
     let pickTeam = '';   // 'a' | 'b' | ''
     let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
@@ -405,7 +408,7 @@
         lastStarPos = null;
         $('star').dataset.placed = '';
         updateTapVisuals();
-        lockUntil = performance.now() + MODES[mode].lock;
+        lockUntil = performance.now() + lockMs();
         const hold = $('hold');
         if (useRandom()) {
           placeTarget();
@@ -413,7 +416,7 @@
         }
         hold.hidden = false;
         try { hold.focus({ preventScroll: true }); } catch (e) { /* ältere Browser */ }
-        setTimeout(render, MODES[mode].lock + 30);
+        setTimeout(render, lockMs() + 30);
       } else if (!iHold && holding) {
         holding = false;
         lightTapped = false;

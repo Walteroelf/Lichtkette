@@ -6,9 +6,10 @@
 // - Namen der Geräte bleiben nur hier, sie gehen nie ins Netz und stehen nicht auf der Tafel.
 (function (LK) {
   const $ = (id) => document.getElementById(id);
-  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
+    basal: '',
     staffel: 'Weitergaben pro Team',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
@@ -286,6 +287,8 @@
       $('tGo').textContent = p.round > 1 ? 'Neue Runde ▶' : 'Los ▶';
       document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = !el.dataset.tfor.split(' ').includes(p.gm); });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';
+      $('tGnLabel').hidden = p.gm === 'basal';
+      $('tGnLabel').nextElementSibling.hidden = p.gm === 'basal';
 
       // Geräte
       const list = p.devices.slice().sort((a, b) => a.slot - b.slot);

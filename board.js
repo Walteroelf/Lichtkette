@@ -18,9 +18,10 @@
   const validGn = (v) => v === 0 || (Number.isInteger(v) && v >= 5 && v <= 100 && v % 5 === 0);
   const NL_OPTIONS = [2, 3];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
-  const GAMES = ['klassik', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim'];
-  const TITLES = { klassik: 'Lichtkette', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim'];
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
+    basal: 'Ganz einfach: Das Licht wandert ohne Zeitdruck und ohne Ziel von Gerät zu Gerät. Jede Weitergabe klingt. Große feste Tippfläche.',
     klassik: 'Ein Licht wandert zufällig von Gerät zu Gerät. Wahlweise als Zeitspiel mit Bestzeit.',
     staffel: 'Zwei Teams, jedes mit eigenem Licht. Wer zuerst die Weitergaben schafft, gewinnt.',
     doppel: 'Zwei oder drei Lichter gleichzeitig. Jedes Gerät hat höchstens ein Licht.',
@@ -33,6 +34,7 @@
   };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
+    basal: '',
     staffel: 'Weitergaben pro Team',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
@@ -355,7 +357,7 @@
         l.r = 0;
         collectStar(l.h);
       }
-      const done = st.gm === 'zieh' ? Math.abs(st.tc[0] - st.tc[1]) >= st.goal
+      const done = st.gm === 'basal' ? false : st.gm === 'zieh' ? Math.abs(st.tc[0] - st.tc[1]) >= st.goal
         : (LK.isTeamGm(st.gm) ? st.tc[li] >= st.goal : (st.gm === 'schatz' ? st.sc >= st.goal : st.chain >= st.goal));
       if (done) { startFinale(li); return; }
       setLight(li, pickFor(li));
@@ -364,6 +366,7 @@
     }
 
     function computeGoal() {
+      if (st.gm === 'basal') return 0; // endlos
       if (st.gn > 0) return st.gn;
       switch (st.gm) {
         case 'klassik': return isTm() ? 10 : Math.max(8, aliveIds().length * 3);
@@ -1243,6 +1246,11 @@
       } else if (view.gm === 'bild') {
         LK.audio.note(n.slot, 0.5, 1.5);
         if (from && edges[edgeKey(from, to)] && edges[edgeKey(from, to)].k > 1) LK.audio.note(n.slot, 0.16, 2, 0.06, 1); // ein bekannter Weg klingt heller
+      } else if (view.gm === 'basal') {
+        // sanft: ein weicher Ton, alle 10 Weitergaben ein kleiner Lauf als Belohnung
+        LK.audio.note(n.slot, 0.38, 1.8);
+        LK.audio.note(n.slot, 0.1, 2.2, 0.05, 1);
+        if (view.chain > 0 && view.chain % 10 === 0) LK.audio.arp();
       } else {
         LK.audio.note(n.slot, 0.5, 1.5);
         if (view.gm === 'dunkel') LK.audio.note(n.slot, 0.16, 1.4, 0.08, 2); // Funke: der Schatten weicht
@@ -1673,6 +1681,12 @@
         ctx.fillStyle = 'rgba(253,224,71,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.34)}px ${SANS}`;
         ctx.fillText(`★ ${view.sc} / ${view.goal}`, cx, cy);
+      } else if (gm === 'basal') {
+        if (view.chain > 0) {
+          ctx.fillStyle = 'rgba(200,205,240,0.45)';
+          ctx.font = `600 ${Math.round(hr * 0.6)}px ${SANS}`;
+          ctx.fillText(String(view.chain), cx, cy);
+        }
       } else if (gm === 'dunkel') {
         ctx.fillStyle = 'rgba(235,238,255,0.85)';
         ctx.font = `600 ${Math.round(hr * 0.5)}px ${SANS}`;
@@ -1832,6 +1846,8 @@
       $('gnVal').textContent = st.gn ? String(st.gn) : `Auto (${st.goal})`;
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
+      $('gnLabel').hidden = st.gm === 'basal';
+      $('gnLabel').nextElementSibling.hidden = st.gm === 'basal';
     }
 
     $('gear').addEventListener('click', () => {
