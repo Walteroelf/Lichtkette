@@ -1937,6 +1937,12 @@
       if (document.fullscreenElement) document.exitFullscreen();
       else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
     });
+    // Derselbe Vollbild-Wechsel auch als kleiner Knopf im Spielbild
+    $('fsTafel').addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+      $('fsTafel').blur();
+    });
     $('restartBtn').addEventListener('click', () => {
       if (isHost !== true) return;
       resetRound(true, false, true);

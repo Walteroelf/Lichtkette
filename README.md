@@ -165,7 +165,7 @@ Die **Tafel** zeigt nur, was alle sehen dürfen: keine Namen und keine Gerätein
 
 - **Spielgeräte:** Oben rechts gibt es ein kleines **⛶** zum Vollbild (iPad und Browser am PC). Bei Blicksteuerung steht es nur auf der Auswahl-Seite, damit nichts aus Versehen auslöst. Auf dem iPhone erlaubt Safari kein Vollbild.
 - **iPad ohne Adressleiste:** In Safari **Teilen → Zum Home-Bildschirm**. Die Seite startet dann wie eine App im Vollbild, mit dem Raum, den du beim Hinzufügen geöffnet hattest.
-- **Tafel:** Der Vollbild-Knopf ist dort schon vorhanden.
+- **Tafel:** Ein kleines **⛶** im Spielbild neben dem Zahnrad (nach „Tafel starten“) und der Knopf „Vollbild“ im Einstellungsfenster.
 
 ## Staffel: Strafpause bei Fehltipps
 
