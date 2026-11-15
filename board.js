@@ -1978,6 +1978,8 @@
       $('gnLabel').textContent = GN_LABEL[st.gm];
       $('gnLabel').hidden = st.gm === 'basal';
       $('gnLabel').nextElementSibling.hidden = st.gm === 'basal';
+      $('gameTitle').textContent = TITLES[st.gm] || '';
+      $('curGame').textContent = `Aktuelles Spiel: ${TITLES[st.gm] || ''} · Einstellungen ›`;
     }
 
     $('gear').addEventListener('click', () => {
@@ -1987,6 +1989,7 @@
       $('teacherQrBtn').hidden = isHost !== true;
       $('modeBox').hidden = isHost !== true;
       markSettings();
+      showViewGames();
       $('dlg').showModal();
       noKeyboard();
     });
@@ -2053,7 +2056,21 @@
         markSettings();
       }));
     }
-    onSetting('gm', 'gm', (v) => v);
+    // Spielart wählen, dann erscheint das Untermenü mit den Einstellungen dieses Spiels
+    function showViewGames() { showView('games'); }
+    function showView(v) {
+      $('viewGames').hidden = v !== 'games';
+      $('viewGame').hidden = v !== 'game';
+      try { $('dlg').scrollTop = 0; } catch (e) { /* egal */ }
+    }
+    document.querySelectorAll('.gcard[data-gm]').forEach((c) => c.addEventListener('click', () => {
+      if (isHost !== true) return;
+      if (c.dataset.gm !== st.gm) applySettings({ gm: c.dataset.gm });
+      markSettings();
+      showView('game');
+    }));
+    $('curGame').addEventListener('click', () => { markSettings(); showView('game'); });
+    $('backToGames').addEventListener('click', () => showView('games'));
     onSetting('tm', 'tm', (v) => parseInt(v, 10));
     onSetting('gn', 'gn', (v) => parseInt(v, 10));
     onSetting('nl', 'nl', (v) => parseInt(v, 10));

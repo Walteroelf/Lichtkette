@@ -73,6 +73,10 @@ Wie ein Gerät die Sterne einsammelt, stellst du pro Gerät ein (Lehrer-Ansicht 
 
 Ohne Einstellung gilt: **Tippen = Stern extra antippen**, **Taster und Blick = ein Tipp reicht**. Beim Taster werden ein Dauerdruck und ein sehr schneller zweiter Druck (unter 0,3 Sekunden) nicht doppelt gezählt. Auf der Tafel steht beim Stern die Zahl der noch offenen Sterne (×2, ×3 …).
 
+## Menü: Spiel wählen, dann Untermenü
+
+Auf der Tafel (⚙) und in der Spielleitung stehen die Spiele nach Gruppen sortiert, jedes mit einem Satz Erklärung: **Einfach**, **Alle zusammen**, **Team gegen Team**, **Knobeln**. Wer ein Spiel antippt, wählt es und kommt ins **Untermenü** mit genau den Einstellungen dieses Spiels (mit „‹ Alle Spiele“ zurück). Der Knopf oben („Aktuelles Spiel: … Einstellungen ›“) führt direkt zu den Einstellungen des laufenden Spiels, ohne es zu wechseln. Unter der Spielauswahl stehen die **grundlegenden Einstellungen**: Nach einer Runde, Raumcode, Spieler-Link, Ton, Lehrer-QR und Vollbild.
+
 ### Töne, die den Spielverlauf verraten
 
 Die Tafel spielt bei den Spielarten Töne, an denen man hört, wie es steht (an der Tafel mit „Ton an/aus“ schaltbar):

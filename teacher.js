@@ -180,7 +180,15 @@
     const setting = (attr, key, parse) => document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
       send({ c: 'settings', patch: { [key]: parse(b.dataset[attr === 'tgm' ? 'tgm' : attr]) } });
     }));
-    setting('tgm', 'gm', (v) => v);
+    // Spielart wählen, dann erscheint das Untermenü mit den Einstellungen dieses Spiels
+    const tShow = (v) => { $('tViewGames').hidden = v !== 'games'; $('tViewGame').hidden = v !== 'game'; };
+    document.querySelectorAll('.gcard[data-tgm]').forEach((c) => c.addEventListener('click', () => {
+      if (!priv) return;
+      if (c.dataset.tgm !== priv.gm) send({ c: 'settings', patch: { gm: c.dataset.tgm } });
+      tShow('game');
+    }));
+    $('tCurGame').addEventListener('click', () => tShow('game'));
+    $('tBackToGames').addEventListener('click', () => tShow('games'));
     setting('ttm', 'tm', (v) => parseInt(v, 10));
     setting('tgn', 'gn', (v) => parseInt(v, 10));
     setting('tnl', 'nl', (v) => parseInt(v, 10));
@@ -275,6 +283,8 @@
       // Spielart und Optionen
       const mark = (attr, value) => document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.setAttribute('aria-pressed', String(parseInt(b.dataset[attr], 10) === value)));
       document.querySelectorAll('[data-tgm]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tgm === p.gm)));
+      $('tGameTitle').textContent = TITLES[p.gm] || '';
+      $('tCurGame').textContent = `Aktuelles Spiel: ${TITLES[p.gm] || ''} · Einstellungen ›`;
       mark('ttm', p.tm);
       mark('tgn', p.gn);
       mark('tnl', p.nl);
