@@ -289,6 +289,61 @@ window.LK = window.LK || {};
       dr.o.frequency.setTargetAtTime(52 + 24 * level, t, 0.4);
     }
 
-    return { init, note, finale, tone, chime, arp, thud, lose, pull, drone, get ready() { return !!ctx; } };
+    // Dunkelheit: Herzschlag (schneller und lauter, je weniger Licht), Glocke bei jeder Weitergabe, "Ausatmen" beim Zurückweichen
+    function heart(level) {
+      if (!ctx) return;
+      const v = 0.12 + 0.3 * level;
+      tone(65, v, 0.2, 0, 'sine');
+      tone(130, v * 0.45, 0.12, 0, 'triangle');
+      tone(55, v * 0.75, 0.22, 0.17, 'sine');
+      tone(110, v * 0.35, 0.12, 0.17, 'triangle');
+    }
+    function bell() {
+      if (!ctx) return;
+      tone(587, 0.13, 2.2, 0, 'sine');
+      tone(1175, 0.26, 1.8, 0, 'sine');
+      tone(1760, 0.09, 1.6, 0.03, 'triangle');
+      tone(2349, 0.09, 1.3, 0, 'sine');
+    }
+    let noiseBuffer = null;
+    function whoosh() {
+      if (!ctx) return;
+      if (!noiseBuffer) {
+        noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      const t = ctx.currentTime;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.Q.value = 0.8;
+      f.frequency.setValueAtTime(500, t);
+      f.frequency.exponentialRampToValueAtTime(2200, t + 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.09, t + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      src.connect(f);
+      f.connect(g);
+      g.connect(master);
+      src.start(t);
+      src.stop(t + 1);
+    }
+    // Zwei dicht beieinander liegende Töne schweben unangenehm: Es wird eng
+    function warn() {
+      if (!ctx) return;
+      tone(233, 0.1, 1.4, 0, 'sine');
+      tone(247, 0.1, 1.4, 0, 'sine');
+    }
+    // Gewonnen: ein warmer, aufsteigender Akkord wie ein Sonnenaufgang
+    function sunrise() {
+      if (!ctx) return;
+      [0, 4, 7, 12, 16].forEach((s, i) => tone(pitch(s - 12), 0.15, 3.4, i * 0.28, 'triangle'));
+    }
+
+    return { init, note, finale, tone, chime, arp, thud, lose, pull, drone, heart, bell, whoosh, warn, sunrise, get ready() { return !!ctx; } };
   })();
 })(window.LK);

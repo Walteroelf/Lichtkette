@@ -1040,12 +1040,18 @@
     let pulses = [];
     let trail = [];
     let ripples = [];
+    // Dunkelheit: Funken fliegen ins Gruppenlicht, Wellen drängen den Nebel zurück
+    let sparks = [];
+    let waves = [];
+    let dkFlare = -9999;
+    let dkBeatN = -1;
+    const fogBlobs = Array.from({ length: 16 }, (_, i) => ({ a: (i / 16) * TAU + Math.random(), s: 0.00004 + Math.random() * 0.00005, r: 0.5 + Math.random() * 0.6, p: Math.random() * TAU }));
     const view = {
       gm: 'klassik', lights: [], vis: [], autoSince: [], round: -1, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
       ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1, ser: 0, sw: [0, 0], sd: 0, tsel: 0,
       stars: [], sc: 0, team: {}, paused: false,
-      lost: 0, dk: 0, dkr: 0, dkAt: 0, mu: null, ge: null, zp: 0,
+      lost: 0, dk: 0, dkr: 0, dkAt: 0, dkShow: 0.12, mu: null, ge: null, zp: 0,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -1130,7 +1136,7 @@
       view.team = s.team || {};
       syncNodes(s.players, view.team);
       if (gmChanged || tmChanged) layout();
-      if (s.round !== view.round) { edges = {}; pulses = []; view.vis = []; view.round = s.round; }
+      if (s.round !== view.round) { edges = {}; pulses = []; view.vis = []; view.round = s.round; view.dkShow = s.dk || 0; sparks = []; waves = []; }
       const first = !view.init;
       view.init = true;
       view.pulseMs = 450; // kurzer Flug: Das Zielsymbol leuchtet schon ab dem Abflug
@@ -1262,6 +1268,7 @@
         if (!edges[k]) edges[k] = { a: from, b: to, k: 0 };
         edges[k].k = Math.min(edges[k].k + 1, view.gm === 'bild' ? 16 : 8);
       }
+      if (view.gm === 'dunkel') sparks.push({ x: n.x, y: n.y, t0: now });
       if (!soundOn) return;
       if (view.gm === 'zieh') {
         const o = 1 - (li % 2);
@@ -1277,9 +1284,11 @@
         LK.audio.note(n.slot, 0.38, 1.8);
         LK.audio.note(n.slot, 0.1, 2.2, 0.05, 1);
         if (view.chain > 0 && view.chain % 10 === 0) LK.audio.arp();
+      } else if (view.gm === 'dunkel') {
+        LK.audio.bell(); // das Licht wird weitergegeben, der Nebel weicht
+        LK.audio.whoosh();
       } else {
         LK.audio.note(n.slot, 0.5, 1.5);
-        if (view.gm === 'dunkel') LK.audio.note(n.slot, 0.16, 1.4, 0.08, 2); // Funke: der Schatten weicht
       }
     }
 
@@ -1297,7 +1306,10 @@
       view.vis = [];
       view.fin = { t0: performance.now() };
       pulses = [];
-      if (soundOn) { if (s.lost) LK.audio.lose(); else LK.audio.finale(Object.values(s.players)); }
+      if (soundOn) {
+        if (s.lost) LK.audio.lose();
+        else { LK.audio.finale(Object.values(s.players)); if (s.gm === 'dunkel') LK.audio.sunrise(); }
+      }
     }
 
     function bez(a, b, t) {
@@ -1332,6 +1344,117 @@
         else ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
       }
       ctx.closePath();
+    }
+
+    // Die Dunkelheit als Bild: Ein Nebel kriecht von den Rändern zur Mitte und frisst das Gruppenlicht an.
+    // Jede Weitergabe schickt einen Funken ins Gruppenlicht. Es flammt auf und eine Welle drängt den Nebel zurück.
+    function drawDarkBack(now, finT, fin) {
+      let lvl = view.dkShow = view.dkShow + (Math.min(1, view.dk + view.dkr * ((now - view.dkAt) / 1000)) - view.dkShow) * 0.1;
+      if (view.lost) lvl = Math.max(lvl, 0.98);
+      if (fin && !view.lost) lvl *= Math.max(0, 1 - finT * 4);
+      const mn = Math.min(W, H);
+      const cx = W / 2;
+      const cy = H / 2;
+      const mx = Math.hypot(W, H) / 2;
+      ctx.globalCompositeOperation = 'source-over';
+      if (lvl > 0.01) {
+        const inner = mx * (1 - 0.78 * lvl);
+        const g = ctx.createRadialGradient(cx, cy, inner * 0.5, cx, cy, inner + mx * 0.35);
+        g.addColorStop(0, 'rgba(8,5,22,0)');
+        g.addColorStop(1, `rgba(8,5,22,${Math.min(0.92, 0.25 + 0.7 * lvl)})`);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        // Schwaden, die langsam um die Mitte ziehen
+        fogBlobs.forEach((bl) => {
+          const a = bl.a + now * bl.s;
+          const d = inner * (0.95 + 0.12 * Math.sin(now / 1700 + bl.p));
+          const x = cx + Math.cos(a) * d * (W / (2 * mx)) * 1.15;
+          const y = cy + Math.sin(a) * d * (H / (2 * mx)) * 1.15;
+          const rr = mn * (0.12 + 0.16 * lvl) * bl.r;
+          const bg = ctx.createRadialGradient(x, y, 0, x, y, rr);
+          bg.addColorStop(0, `rgba(40,22,80,${0.22 * Math.min(1, lvl * 1.6)})`);
+          bg.addColorStop(1, 'rgba(40,22,80,0)');
+          ctx.fillStyle = bg;
+          ctx.beginPath();
+          ctx.arc(x, y, rr, 0, TAU);
+          ctx.fill();
+        });
+      }
+      // Herzschlag: schneller und lauter, je weniger Licht übrig ist. Das Gruppenlicht pulst im selben Takt.
+      const bpm = 50 + 70 * lvl;
+      const ph = (now / 1000) * (bpm / 60);
+      const beat = Math.floor(ph);
+      const pulse = Math.exp(-(ph - beat) * 7);
+      if (beat !== dkBeatN) {
+        dkBeatN = beat;
+        if (soundOn && view.ph === 'play' && !fin && !view.paused && Object.keys(nodes).length) {
+          LK.audio.heart(lvl);
+          if (lvl > 0.75 && beat % 4 === 0) LK.audio.warn(); // unter einem Viertel Licht: ein enger, unruhiger Ton
+        }
+      }
+      // Das Gruppenlicht
+      const flare = Math.max(0, 1 - (now - dkFlare) / 700);
+      let sz = mn * 0.2 * (0.18 + 0.82 * (1 - lvl));
+      sz *= 1 + 0.07 * pulse * (0.5 + lvl) + 0.25 * flare;
+      if (lvl > 0.5) sz *= 1 + 0.05 * Math.sin(now / 53 + Math.sin(now / 131) * 3) * (lvl - 0.5) * 2; // es flackert
+      if (fin && view.lost) sz *= Math.max(0, 1 - finT * 3);
+      if (fin && !view.lost) sz *= 1.25;
+      if (sz > 1) {
+        ctx.globalAlpha = view.ph === 'play' || fin ? 1 : 0.4; // vor dem Start leiser, damit der Text lesbar bleibt
+        ctx.globalCompositeOperation = 'lighter';
+        const og = ctx.createRadialGradient(cx, cy, 0, cx, cy, sz * 2.4);
+        og.addColorStop(0, 'rgba(255,244,200,0.8)');
+        og.addColorStop(0.25, 'rgba(255,200,110,0.45)');
+        og.addColorStop(1, 'rgba(255,150,60,0)');
+        ctx.fillStyle = og;
+        ctx.beginPath();
+        ctx.arc(cx, cy, sz * 2.4, 0, TAU);
+        ctx.fill();
+        const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, sz * 0.7);
+        cg.addColorStop(0, 'rgba(255,252,235,0.95)');
+        cg.addColorStop(0.5, 'rgba(255,235,170,0.5)');
+        cg.addColorStop(1, 'rgba(255,210,120,0)');
+        ctx.fillStyle = cg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, sz * 0.7, 0, TAU);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function drawDarkFront(now) {
+      const cx = W / 2;
+      const cy = H / 2;
+      const mx = Math.hypot(W, H) / 2;
+      const R = baseR();
+      ctx.globalCompositeOperation = 'lighter';
+      // Funken: vom Gerät, das das Licht bekommen hat, ins Gruppenlicht
+      sparks = sparks.filter((sp) => {
+        const k = (now - sp.t0) / 450;
+        if (k >= 1) { dkFlare = now; waves.push({ t0: now }); return false; }
+        const e = ease(k);
+        const x = sp.x + (cx - sp.x) * e;
+        const y = sp.y + (cy - sp.y) * e;
+        const gg = ctx.createRadialGradient(x, y, 0, x, y, R * 1.1);
+        gg.addColorStop(0, 'rgba(255,250,225,0.95)');
+        gg.addColorStop(1, 'rgba(255,190,100,0)');
+        ctx.fillStyle = gg;
+        ctx.beginPath();
+        ctx.arc(x, y, R * 1.1, 0, TAU);
+        ctx.fill();
+        return true;
+      });
+      // Wellen: Das Licht drängt den Nebel zurück
+      waves = waves.filter((w) => now - w.t0 < 1100);
+      waves.forEach((w) => {
+        const k = (now - w.t0) / 1100;
+        ctx.lineWidth = 7 * (1 - k) + 1;
+        ctx.strokeStyle = `rgba(255,225,160,${0.55 * (1 - k)})`;
+        ctx.beginPath();
+        ctx.arc(cx, cy, k * mx * 0.85, 0, TAU);
+        ctx.stroke();
+      });
     }
 
     function draw(now) {
@@ -1378,6 +1501,7 @@
         return true;
       });
 
+      if (view.gm === 'dunkel') drawDarkBack(now, finT, fin);
       ctx.globalCompositeOperation = 'lighter';
 
       // Spuren aus früheren Weitergaben
@@ -1482,6 +1606,8 @@
         }
       });
 
+      if (view.gm === 'dunkel') drawDarkFront(now);
+
       // Schweif und Lichtkugeln
       trail = trail.filter((t) => now - t.t < 650);
       trail.forEach((t) => {
@@ -1558,37 +1684,7 @@
         view.vis.forEach((id, li) => { if (id && nodes[id]) ctx.fillText(String(li + 1), nodes[id].x, nodes[id].y + 1); });
       }
 
-      // Die Dunkelheit: ein Schatten schließt sich von den Rändern her
       if (view.gm !== 'dunkel') LK.audio.drone(null);
-      if (view.gm === 'dunkel') {
-        let lvl = Math.min(1, view.dk + view.dkr * ((now - view.dkAt) / 1000));
-        if (fin && !view.lost) lvl *= Math.max(0, 1 - finT * 4);
-        LK.audio.drone(soundOn && !fin && !view.paused && view.ph === 'play' ? lvl : null);
-        if (lvl > 0.01) {
-          const mx = Math.hypot(W, H) / 2;
-          const r0 = mx * (1.05 - 0.85 * lvl);
-          const g = ctx.createRadialGradient(W / 2, H / 2, r0 * 0.55, W / 2, H / 2, r0 + mx * 0.3);
-          g.addColorStop(0, 'rgba(4,3,12,0)');
-          g.addColorStop(1, `rgba(4,3,12,${Math.min(0.95, 0.3 + 0.65 * lvl)})`);
-          ctx.fillStyle = g;
-          ctx.fillRect(0, 0, W, H);
-        }
-        if (!fin && Object.keys(nodes).length) {
-          const bw = W * 0.4;
-          const bh = Math.max(8, H * 0.014);
-          const bx = (W - bw) / 2;
-          const by = H * 0.05;
-          ctx.fillStyle = 'rgba(180,190,255,0.16)';
-          ctx.fillRect(bx, by, bw, bh);
-          ctx.fillStyle = `rgba(${Math.round(120 + 100 * lvl)},${Math.round(110 - 50 * lvl)},255,0.95)`;
-          ctx.fillRect(bx, by, bw * lvl, bh);
-          ctx.fillStyle = 'rgba(200,205,240,0.8)';
-          ctx.font = `500 ${Math.round(Math.min(W, H) * 0.024)}px ${SANS}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('Dunkelheit', W / 2, by + bh + Math.min(W, H) * 0.03);
-        }
-      }
 
       drawHud(now, finT, fin);
 
@@ -1620,7 +1716,7 @@
 
       const progTarget = fin ? 1 : (view.goal ? (gm === 'schatz' ? view.sc : view.chain) / view.goal : 0);
       view.prog += (progTarget - view.prog) * 0.08;
-      const ringHidden = (fin && (tm || LK.isTeamGm(gm))) || LK.isTeamGm(gm);
+      const ringHidden = (fin && (tm || LK.isTeamGm(gm))) || LK.isTeamGm(gm) || gm === 'dunkel';
       if (!ringHidden) {
         ctx.lineWidth = 6;
         ctx.lineCap = 'round';
@@ -1722,9 +1818,9 @@
           ctx.fillText(String(view.chain), cx, cy);
         }
       } else if (gm === 'dunkel') {
-        ctx.fillStyle = 'rgba(235,238,255,0.85)';
+        ctx.fillStyle = 'rgba(235,238,255,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.5)}px ${SANS}`;
-        ctx.fillText(`${view.chain} / ${view.goal}`, cx, cy);
+        ctx.fillText(`${view.chain} / ${view.goal}`, cx, H * 0.085);
       } else if (gm === 'muster' && view.mu) {
         const mu = view.mu;
         const txt = { wait: 'Es braucht mindestens zwei Geräte', ready: mu.ag ? 'Noch einmal ansehen?' : 'Bereit? Gleich kommt eine Reihenfolge', show: 'Merkt euch die Reihenfolge', shown: 'Habt ihr sie euch gemerkt?', go: 'Jetzt ihr! Wer war zuerst dran?', again: 'Nicht ganz. Gleich noch einmal', next: 'Richtig!' }[mu.ph] || '';
