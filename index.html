@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261119-1607">
+<meta name="build" content="20261119-1615">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -31,7 +31,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261119-1607">
+<link rel="stylesheet" href="style.css?v=20261119-1615">
 </head>
 <body>
 
@@ -216,6 +216,16 @@
   </div>
   <p id="swResult" class="sw-result">Noch keine Taste gewählt.</p>
   <p id="swHint" class="info"></p>
+  <details id="swHelp" class="sw-help">
+    <summary>Hilfe: Der Taster reagiert nicht? (zum Beispiel iSwitch)</summary>
+    <ul>
+      <li><b>Taste erkannt?</b> Drücke den Taster. Steht oben „Erkannt: …“, arbeitet er wie eine Tastatur. Dann ist alles in Ordnung.</li>
+      <li><b>Nichts passiert?</b> Dann arbeitet er vermutlich mit der <b>iPad-Schaltersteuerung</b> (Einstellungen → Bedienungshilfen → Schaltersteuerung). Wähle unten <b>„Nur Bildschirm“</b>. Die App zeigt dann nur noch ein großes Ziel, das die Schaltersteuerung auswählen kann.</li>
+      <li><b>iSwitch schläft:</b> Nach einer Stunde ohne Benutzung schaltet er sich aus und trennt Bluetooth. Einmal drücken und kurz warten.</li>
+      <li><b>Verbindet nicht?</b> In den iPad-Einstellungen unter Bluetooth das Gerät „Ignorieren“ und neu koppeln. War er noch mit einem anderen iPad verbunden, dort zuerst trennen.</li>
+      <li><b>Bildschirmtastatur weg?</b> Das ist normal, solange ein Bluetooth-Taster als Tastatur verbunden ist.</li>
+    </ul>
+  </details>
   <p class="info sw-or">Beim Schatz-Licht (Sterne einsammeln):</p>
   <div class="sw-choices">
     <button class="gm" data-swstar="auto">Ein Druck sammelt alle Sterne</button>
@@ -443,13 +453,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261119-1607"></script>
-<script src="lib/qrcode.js?v=20261119-1607"></script>
-<script src="shared.js?v=20261119-1607"></script>
-<script src="net.js?v=20261119-1607"></script>
-<script src="board.js?v=20261119-1607"></script>
-<script src="player.js?v=20261119-1607"></script>
-<script src="teacher.js?v=20261119-1607"></script>
-<script src="main.js?v=20261119-1607"></script>
+<script src="lib/mqtt.min.js?v=20261119-1615"></script>
+<script src="lib/qrcode.js?v=20261119-1615"></script>
+<script src="shared.js?v=20261119-1615"></script>
+<script src="net.js?v=20261119-1615"></script>
+<script src="board.js?v=20261119-1615"></script>
+<script src="player.js?v=20261119-1615"></script>
+<script src="teacher.js?v=20261119-1615"></script>
+<script src="main.js?v=20261119-1615"></script>
 </body>
 </html>

@@ -220,6 +220,7 @@
       });
     }
 
+    let swHintTimer = null;
     function showSwitchSetup() {
       active = false;
       holding = false;
@@ -230,6 +231,14 @@
       // Ist schon eine Taste eingestellt, startet ein Druck darauf sofort
       swLearnedAt = sw.kind === 'key' ? performance.now() - 1000 : 0;
       renderSwitch();
+      // Kommt keine Taste an, arbeitet der Taster vermutlich über die iPad-Schaltersteuerung (zum Beispiel der iSwitch): Hilfe zeigen
+      clearTimeout(swHintTimer);
+      swHintTimer = setTimeout(() => {
+        if (!scrSwitch.hidden && sw.kind === 'default') {
+          $('swHint').textContent = 'Noch keine Taste erkannt. Arbeitet dein Taster mit der iPad-Schaltersteuerung? Dann unten „Nur Bildschirm“ wählen. Mehr in der Hilfe.';
+          $('swHelp').open = true;
+        }
+      }, 6000);
       try { $('swTitle').focus({ preventScroll: true }); } catch (e) { /* ältere Browser */ }
     }
 
@@ -367,8 +376,9 @@
       $('hold').innerHTML = ''; // das Symbol im Punkt gehört nur zum springenden Punkt, sonst wird es riesig und schwarz
       if (!useRandom()) clearTarget();
       $('hint').textContent = hintText();
-      $('fsPlay').hidden = !fsOk || mode === 'blick'; // bei Augensteuerung kein Knopf, der aus Versehen ausgelöst wird
-      $('change').hidden = mode === 'blick'; // bei Augensteuerung kein kleiner Knopf, der aus Versehen ausgelöst wird
+      const swCtl = mode === 'taster' && sw.kind === 'tap'; // iPad-Schaltersteuerung läuft: sie würde sonst auch die kleinen Knöpfe abtasten
+      $('fsPlay').hidden = !fsOk || mode === 'blick' || swCtl; // bei Augensteuerung kein Knopf, der aus Versehen ausgelöst wird
+      $('change').hidden = mode === 'blick' || swCtl; // bei Augensteuerung kein kleiner Knopf, der aus Versehen ausgelöst wird
       sendHb();
       render();
     }
@@ -452,7 +462,10 @@
         clearTimeout(starTimer);
         updateTapVisuals();
       }
-      if (!iHold) $('hold').hidden = !tg.target;
+      // Mit der iPad-Schaltersteuerung bleibt das große Ziel immer stehen (unsichtbar), damit die Abtastung dort ruht und nicht ins Leere läuft
+      const swCtlNow = mode === 'taster' && sw.kind === 'tap' && !!fresh && slot >= 0 && !st.finale;
+      if (!iHold) $('hold').hidden = !(tg.target || swCtlNow);
+      $('hold').setAttribute('aria-label', iHold ? 'Licht weitergeben' : 'Wartet auf das Licht');
 
       // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, erscheint ein gelber Stern zum Antippen (immer nur einer)
       const showStar = !!(iHold && holding && starTapNeeded() && !starsDone());
@@ -750,7 +763,12 @@
     hold.addEventListener('pointerdown', (e) => { if (mode === 'touch' && e.pointerType === 'touch') { e.preventDefault(); confirm(); } });
     // Taster mit Tastatur: Der Browser löst nach dem Loslassen der Taste zusätzlich einen Klick auf dem Knopf aus (detail 0).
     // Der zählte sonst als zweiter Druck, vor allem bei längerem Drücken. Nur der Tastendruck selbst zählt.
-    const keyClick = (e) => mode === 'taster' && e.detail === 0 && sw.kind !== 'tap';
+    // Ein Klick kurz nach einer Taste stammt von dieser Taste (die Tastatur löst auf dem fokussierten Knopf einen Klick aus) und zählt nicht doppelt.
+    // Ein Klick OHNE Taste davor kommt von der iPad-Schaltersteuerung oder einer Maus und gilt.
+    let lastKeyAt = 0;
+    document.addEventListener('keydown', () => { lastKeyAt = performance.now(); }, true);
+    document.addEventListener('keyup', () => { lastKeyAt = performance.now(); }, true);
+    const keyClick = (e) => mode === 'taster' && e.detail === 0 && sw.kind !== 'tap' && performance.now() - lastKeyAt < 500;
     hold.addEventListener('click', (e) => { if (keyClick(e)) return; confirm(); });
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;

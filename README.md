@@ -87,6 +87,17 @@ Die Tafel spielt bei den Spielarten Töne, an denen man hört, wie es steht (an 
 - **Geheime Reihenfolge:** Jeder gefundene Schritt klingt höher als der davor, ein falscher Tipp klingt tief und weich.
 - **Lichtbild:** Ein Weg, der schon öfter benutzt wurde, klingt heller.
 
+### Bluetooth-Taster wie der iSwitch
+
+Ein Bluetooth-Taster kann auf zwei Arten arbeiten. Die App kommt mit beiden zurecht, man muss nur wissen, welche es ist:
+
+1. **Als Tastatur** (der Taster sendet eine Taste, zum Beispiel Leertaste): Auf der Taster-Seite des Geräts den Taster drücken. Die App erkennt die Taste und merkt sie. Fertig.
+2. **Über die iPad-Schaltersteuerung** (Einstellungen → Bedienungshilfen → Schaltersteuerung): Der Taster sendet keine Taste, die App sieht also nichts. Auf der Taster-Seite **„Nur Bildschirm“** wählen. Dann zeigt die App nur noch ein einziges großes Ziel, das die Schaltersteuerung auswählen kann. Die kleinen Knöpfe (⋯ und Vollbild) sind ausgeblendet, damit die Abtastung nicht dort hängen bleibt.
+
+Kommt nach 6 Sekunden keine Taste an, öffnet die Taster-Seite von selbst eine Hilfe mit diesen Hinweisen. Weitere Tipps zum **iSwitch**: Er schläft nach einer Stunde ohne Benutzung ein und trennt Bluetooth (einmal drücken, kurz warten). Bei Verbindungsproblemen unter Bluetooth „Ignorieren“ und neu koppeln, und vorher vom anderen iPad trennen. Bei Tastatur-Betrieb blendet das iPad die Bildschirmtastatur aus.
+
+Hinweis zum Doppelzählen: Ein Klick, der direkt auf eine Taste folgt, wird ignoriert (er stammt von der Taste). Ein Klick ohne Taste davor, wie ihn die Schaltersteuerung erzeugt, gilt.
+
 ### Taster und Schatz-Licht
 
 Auf der Seite zum Taster-Einrichten gibt es die Wahl **„Ein Druck sammelt alle Sterne“** (Standard) oder **„Ein Druck pro Stern“**. Das Gerät merkt sich die Wahl. Die Spielleitung kann sie pro Gerät überschreiben („Stern einsammeln“).

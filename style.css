@@ -529,3 +529,8 @@ dialog .btn.close {
 
 #dlg { width: min(780px, 94vw); max-width: none; }
 #tViewGames .gcards, #viewGames .gcards { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+.sw-help { width: min(640px, 100%); font-size: 14px; color: var(--muted); margin: 6px 0; }
+.sw-help summary { cursor: pointer; color: var(--fg); padding: 8px 0; }
+.sw-help ul { margin: 4px 0 8px; padding-left: 20px; line-height: 1.5; }
+.sw-help li { margin-bottom: 6px; }
