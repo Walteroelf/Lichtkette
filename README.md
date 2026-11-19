@@ -171,6 +171,14 @@ Die **Tafel** zeigt nur, was alle sehen dürfen: keine Namen und keine Gerätein
 - **iPad ohne Adressleiste:** In Safari **Teilen → Zum Home-Bildschirm**. Die Seite startet dann wie eine App im Vollbild, mit dem Raum, den du beim Hinzufügen geöffnet hattest.
 - **Tafel:** Ein kleines **⛶** im Spielbild neben dem Zahnrad (nach „Tafel starten“) und der Knopf „Vollbild“ im Einstellungsfenster.
 
+### Verbindung: Wächter gegen tote Verbindungen
+
+- **Zwei Server zugleich** (HiveMQ und EMQX): Fällt einer aus oder wird langsam, läuft es über den anderen weiter.
+- **Tote Verbindungen erkennen:** Liefert ein Server seit 12 Sekunden nichts mehr, der andere aber schon, wird die Verbindung zu ihm neu aufgebaut. Das passiert ohne Zutun, meist nach dem Aufwachen eines iPads oder bei kurzen WLAN-Aussetzern.
+- **Nach dem Aufwachen:** War ein Gerät länger als 6 Sekunden im Hintergrund oder gesperrt, oder kommt das Netz zurück, verbindet es sofort neu, statt auf die automatische Wiederholung zu warten.
+- **Großzügigere Fristen:** Ein Gerät fliegt erst nach 14 Sekunden ohne Lebenszeichen aus dem Spiel (vorher 9), und ein Gerät wartet 16 Sekunden auf den Spielstand der Tafel, bevor es „Warte auf die Tafel …“ zeigt (vorher 12). Kurze Aussetzer bringen dadurch weniger durcheinander.
+- **Prüfen:** In der Spielleitung zeigt die Diagnose, welche Server die Tafel erreicht, und mit „Verbindung testen“ die Antwortzeit.
+
 ## Staffel: Strafpause bei Fehltipps
 
 - **Freiwillig und zweifach abgesichert:** Auf der Tafel muss die **Strafpause** eingeschaltet sein (⚙ → Staffel → aus, 2 s oder 4 s), **und** das Gerät muss auf „mit Strafe“ stehen (am Gerät selbst oder von der Tafel vorgegeben). Standard ist beides aus.

@@ -13,7 +13,7 @@
   const TAU = Math.PI * 2;
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   const FINALE_MS = 5200;
-  const GONE_MS = 9000; // so lange ohne Lebenszeichen, dann fliegt ein Gerät aus dem Spiel
+  const GONE_MS = 14000; // so lange ohne Lebenszeichen, dann fliegt ein Gerät aus dem Spiel
   // Ziel pro Runde: 0 = automatisch, sonst 5 bis 100 in 5er-Schritten
   const validGn = (v) => v === 0 || (Number.isInteger(v) && v >= 5 && v <= 100 && v % 5 === 0);
   const NL_OPTIONS = [2, 3];

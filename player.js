@@ -77,7 +77,7 @@
     // Staffel: Die Schüler wählen ihr Team selbst (wenn die Tafel das eingestellt hat)
     let pickTeam = '';   // 'a' | 'b' | ''
     let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
-    const pickActive = () => !!(st && Date.now() - lastStateAt < 12000 && LK.isTeamGm(st.gm) && st.tsel === 1 && st.ph === 'ready'
+    const pickActive = () => !!(st && Date.now() - lastStateAt < 16000 && LK.isTeamGm(st.gm) && st.tsel === 1 && st.ph === 'ready'
       && st.players[ID] !== undefined && cfg().tt === undefined && !st.finale);
     const curPick = () => pickTeam || (st && st.team && st.team[ID] === 1 ? 'b' : 'a');
     const starHere = () => !!(st && st.gm === 'schatz' && st.stars && st.stars.includes(ID));
@@ -396,7 +396,7 @@
     // ---------- Anzeige ----------
     function render() {
       if (!active) return;
-      const fresh = st && Date.now() - lastStateAt < 12000;
+      const fresh = st && Date.now() - lastStateAt < 16000;
       const mySlot = fresh && st.players[ID] !== undefined ? st.players[ID] : -1;
       if (mySlot !== slot) {
         slot = mySlot;
@@ -553,7 +553,7 @@
 
     let lastTapSent = 0;
     function tapAnywhere() {
-      if (!st || Date.now() - lastStateAt > 12000) return;
+      if (!st || Date.now() - lastStateAt > 16000) return;
       const tg = tapGame(slot >= 0);
       if (!tg.target || tg.locked || performance.now() - lastTapSent < 400) return;
       lastTapSent = performance.now();

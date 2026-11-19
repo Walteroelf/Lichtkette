@@ -45,6 +45,42 @@
     start() {
       const idx = this.mode === 1 ? [0] : (this.mode === 2 ? [1] : [0, 1]);
       idx.forEach((i) => this._open(LK.BROKERS[i % LK.BROKERS.length]));
+      // Wächter: erkennt tote Verbindungen, die niemand als "geschlossen" meldet (zum Beispiel nach dem Aufwachen eines iPads)
+      this._wd = setInterval(() => this._watch(), 2000);
+      let hiddenAt = 0;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+        if (hiddenAt && Date.now() - hiddenAt > 6000) this.refresh(); // war länger im Hintergrund oder gesperrt: frisch verbinden
+        hiddenAt = 0;
+      });
+      window.addEventListener('online', () => this.refresh());
+    }
+
+    // Alle Server neu verbinden (mit neuem Client, das geht schneller als das Warten auf die automatische Wiederholung)
+    refresh() { this.links.forEach((l) => this._restart(l)); }
+
+    _restart(link) {
+      const now = Date.now();
+      if (now - link.lastRestart < 8000) return;
+      link.lastRestart = now;
+      link.lastRx = now;
+      const old = link.c;
+      link.ok = false;
+      this._status();
+      try { old.removeAllListeners(); old.on('error', () => {}); old.end(true); } catch (e) { /* war schon weg */ }
+      this._connect(link);
+    }
+
+    _watch() {
+      const now = Date.now();
+      this.links.forEach((l) => {
+        if (!l.ok) return;
+        const other = this.links.some((o) => o !== l && o.ok && now - o.lastRx < 4000);
+        // Dieser Server liefert seit Sekunden nichts mehr, der andere schon: vermutlich eine tote Verbindung
+        if (now - l.lastRx > 12000 && other) this._restart(l);
+      });
+      // Alle Server lange still und die Seite ist sichtbar: einmal frisch verbinden
+      if (this.links.length && document.visibilityState === 'visible' && this.links.every((l) => now - l.lastRx > 45000)) this.refresh();
     }
 
     _status() {
@@ -63,28 +99,36 @@
     }
 
     _open(broker) {
-      const link = { name: broker.name, ok: false, c: null };
+      const link = { name: broker.name, ok: false, c: null, broker, lastRx: Date.now(), lastRestart: 0 };
       this.links.push(link);
-      const c = mqtt.connect(broker.url, {
+      this._connect(link);
+    }
+
+    _connect(link) {
+      const c = mqtt.connect(link.broker.url, {
         clientId: `lk_${LK.rid(12)}`,
         clean: true,
         reconnectPeriod: 2000,
         connectTimeout: 6000,
-        keepalive: 20,
+        keepalive: 10,
       });
       link.c = c;
 
       c.on('connect', () => {
+        if (link.c !== c) return;
         link.ok = true;
+        link.lastRx = Date.now();
         c.subscribe(this.subs.map((s) => this.topic(s)), { qos: 0 });
         this._status();
         if (this.onconnect) this.onconnect();
       });
-      const down = () => { link.ok = false; this._status(); };
+      const down = () => { if (link.c !== c) return; link.ok = false; this._status(); };
       c.on('close', down);
       c.on('offline', down);
       c.on('error', () => { /* mqtt.js versucht es selbst erneut */ });
       c.on('message', (t, buf) => {
+        if (link.c !== c) return;
+        link.lastRx = Date.now();
         const name = t.slice(this.topic('').length);
         const fn = this.handlers[name];
         if (!fn) return;
