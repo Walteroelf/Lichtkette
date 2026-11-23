@@ -381,9 +381,10 @@
     const X_BEND = [1, 2, 3, 3, 4, 4];
     const X_WIDTH = [0.17, 0.15, 0.13, 0.115, 0.11, 0.105];
     const X_FING = [1, 1, 1, 1, 2, 3];
-    const X_TIME = [3, 3.6, 4.4, 5, 7, 9]; // so viele Sekunden gelten als "genau richtig"
+    const X_TIME = [3, 3.6, 6, 7.5, 9, 10.5]; // so viele Sekunden gelten als "genau richtig"
     const X_COL = ['#7dd3fc', '#f9a8d4', '#fde047'];
-    const X_SHAPES = [['sine', 'arc'], ['sine', 'arc', 'tri'], ['sine', 'arc', 'tri', 'grow'], ['sine', 'tri', 'grow', 'stairs', 'arc'], ['sine', 'tri', 'grow', 'stairs', 'arc'], ['sine', 'tri', 'grow', 'stairs', 'arc']];
+    const X_SHAPES = [['free', 'free', 'free', 'sine', 'arc'], ['free', 'free', 'free', 'sine', 'arc', 'tri'], ['free', 'free', 'free', 'free', 'sine', 'tri', 'grow'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs', 'arc'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'tri', 'grow', 'stairs']];
+    const X_PLAIN = ['sine', 'arc', 'tri', 'grow', 'stairs'];
     let tr = null;
     let xLvl = 0;
     let xStreak = 0;
@@ -401,7 +402,74 @@
       }
     }
     // Eine Spur von einer Seite zur anderen, auch diagonal. Sie liegt immer ganz auf dem Bildschirm.
+    // Freie Kurve: ein glatter Verlauf durch zufällige Punkte. Start und Ziel liegen irgendwo, je höher die Stufe, desto mehr Windungen.
+    function freePath(lvl, w) {
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const vm = Math.min(W, H);
+      const pad = w * 0.5 + 10 + vm * 0.03;
+      const x0 = pad; const x1 = W - pad; const y0 = pad; const y1 = H * 0.8 - pad;
+      const R = Math.hypot(x1 - x0, y1 - y0);
+      const rnd = (a, b) => a + Math.random() * (b - a);
+      const clampPt = (q) => [Math.max(x0, Math.min(x1, q[0])), Math.max(y0, Math.min(y1, q[1]))];
+      for (let att = 0; att < 50; att++) {
+        const ease = att > 30 ? 0.55 : 1;
+        let S; let E; let g = 0;
+        do { S = [rnd(x0, x1), rnd(y0, y1)]; E = [rnd(x0, x1), rnd(y0, y1)]; g++; } while (Math.hypot(E[0] - S[0], E[1] - S[1]) < R * (0.45 - Math.min(0.2, g * 0.01)) && g < 40);
+        const dx = E[0] - S[0]; const dy = E[1] - S[1];
+        const len = Math.hypot(dx, dy) || 1;
+        const px = -dy / len; const py = dx / len;
+        const kmid = lvl + 1 + (Math.random() < 0.5 ? 0 : 1);
+        const ctrl = [S];
+        let side = Math.random() < 0.5 ? 1 : -1;
+        for (let i = 1; i <= kmid; i++) {
+          const t = Math.min(0.96, Math.max(0.04, i / (kmid + 1) + rnd(-0.35, 0.35) / (kmid + 1)));
+          const off = side * rnd(0.35, 1) * Math.min(len * 0.4, vm * 0.32) * ease * (0.6 + 0.1 * lvl);
+          ctrl.push(clampPt([S[0] + dx * t + px * off, S[1] + dy * t + py * off]));
+          side = Math.random() < 0.75 ? -side : side;
+        }
+        ctrl.push(E);
+        // Catmull-Rom, danach in gleichmäßige Schritte zerlegt
+        const dense = [];
+        const P = [ctrl[0], ...ctrl, ctrl[ctrl.length - 1]];
+        for (let i = 1; i < P.length - 2; i++) {
+          for (let k = 0; k < 14; k++) {
+            const t = k / 14; const t2 = t * t; const t3 = t2 * t;
+            const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+            dense.push([f(P[i - 1][0], P[i][0], P[i + 1][0], P[i + 2][0]), f(P[i - 1][1], P[i][1], P[i + 1][1], P[i + 2][1])]);
+          }
+        }
+        dense.push(E);
+        const cum = [0];
+        for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]));
+        const total = cum[cum.length - 1];
+        const pts = [];
+        let j = 0;
+        for (let i = 0; i <= 72; i++) {
+          const target = (total * i) / 72;
+          while (j < cum.length - 2 && cum[j + 1] < target) j++;
+          const seg = cum[j + 1] - cum[j] || 1;
+          const u = (target - cum[j]) / seg;
+          pts.push(clampPt([dense[j][0] + (dense[j + 1][0] - dense[j][0]) * u, dense[j][1] + (dense[j + 1][1] - dense[j][1]) * u]));
+        }
+        // nicht zu eng, nicht mit sich selbst verwechselbar
+        let ok = true;
+        const gapIdx = Math.ceil((w * 3.2) / (total / 72));
+        for (let a = 0; a < pts.length && ok; a++) {
+          for (let b = a + gapIdx; b < pts.length; b++) {
+            if (Math.hypot(pts[a][0] - pts[b][0], pts[a][1] - pts[b][1]) < w * 1.25) { ok = false; break; }
+          }
+        }
+        if (ok) return pts;
+      }
+      return null;
+    }
     function makePath(lvl, w, kind, orient) {
+      if (kind === 'free') {
+        const fp = freePath(lvl, w);
+        if (fp) return fp;
+        kind = 'sine';
+      }
       const W = window.innerWidth;
       const H = window.innerHeight;
       const vm = Math.min(W, H);
@@ -449,18 +517,25 @@
       const H = window.innerHeight;
       const vm = Math.min(W, H);
       const lvl = xLevel();
-      const n = X_FING[lvl - 1];
+      // Anzahl der Spuren: ab Stufe 3 mehrere, meist nacheinander (eine Reihenfolge finden), selten gleichzeitig
+      const n = [1, 1, 2, Math.random() < 0.5 ? 2 : 3, 3, 3][lvl - 1];
       const w = vm * X_WIDTH[lvl - 1];
       const kinds = X_SHAPES[lvl - 1];
       const kind = () => kinds[Math.floor(Math.random() * kinds.length)];
-      const cross = n > 1 && Math.random() < 0.6; // übereinander und freischalten, sonst nebeneinander mit mehreren Fingern
+      const cross = n > 1 && (lvl < 5 || Math.random() < 0.8); // übereinander und freischalten, sonst nebeneinander mit mehreren Fingern
       let paths = [];
       if (n === 1) {
         paths = [{ pts: makePath(lvl, w, kind()), prog: 0, done: false, lock: -1 }];
       } else if (cross) {
         const order = [...Array(n).keys()].sort(() => Math.random() - 0.5);
         for (let i = 0; i < n; i++) paths.push({ pts: makePath(lvl, w, kind()), prog: 0, done: false, lock: -1, col: X_COL[i] });
-        for (let k = 1; k < n; k++) paths[order[k]].lock = order[k - 1];
+        if (n === 3 && Math.random() < 0.45) {
+          // gemischt: Eine Spur schaltet gleich zwei andere frei, die man in beliebiger Reihenfolge ziehen kann
+          paths[order[1]].lock = order[0];
+          paths[order[2]].lock = order[0];
+        } else {
+          for (let k = 1; k < n; k++) paths[order[k]].lock = order[k - 1];
+        }
         // Die Spuren sollen sich wirklich überlagern: Startpunkte nicht aufeinander
         for (let tries = 0; tries < 20; tries++) {
           const bad = paths.some((p, i) => paths.some((q, j) => j > i && Math.hypot(p.pts[0][0] - q.pts[0][0], p.pts[0][1] - q.pts[0][1]) < w * 2.2));
@@ -470,7 +545,7 @@
         tr = { order };
       } else {
         // nebeneinander: dieselbe Form, seitlich versetzt, alle gleichzeitig
-        const base = makePath(lvl, w * 0.8, kind());
+        const base = makePath(lvl, w * 0.8, X_PLAIN[Math.floor(Math.random() * X_PLAIN.length)]);
         const gap = w * 1.9;
         const dx = base[72][0] - base[0][0]; const dy = base[72][1] - base[0][1];
         const len = Math.hypot(dx, dy);
