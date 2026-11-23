@@ -413,19 +413,34 @@
       const len = Math.hypot(dx, dy);
       const ux = dx / len; const uy = dy / len;
       const px = -uy; const py = ux;
-      const amp = Math.min(len * 0.2, vm * 0.22) * (0.55 + 0.09 * lvl);
+      const amp0 = Math.min(len * 0.2, vm * 0.22) * (0.55 + 0.09 * lvl);
       const bends = X_BEND[lvl - 1];
-      const gap = w * 1.9;
-      const paths = [];
-      for (let f = 0; f < n; f++) {
-        const off = (f - (n - 1) / 2) * gap;
-        const pts = [];
-        for (let i = 0; i <= 72; i++) {
-          const t = i / 72;
-          const a = amp * Math.sin(bends * Math.PI * t);
-          pts.push([sx + dx * t + px * (a + off), sy + dy * t + py * (a + off)]);
+      const pad = w * 0.5 + 10;
+      const maxY = H * 0.84;
+      let paths = [];
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const k = Math.pow(0.85, attempt);
+        const amp = amp0 * k;
+        const gap = w * 1.9 * Math.pow(0.93, attempt);
+        paths = [];
+        for (let f = 0; f < n; f++) {
+          const off = (f - (n - 1) / 2) * gap;
+          const pts = [];
+          for (let i = 0; i <= 72; i++) {
+            const t = i / 72;
+            const a2 = amp * Math.sin(bends * Math.PI * t);
+            pts.push([sx + dx * t + px * (a2 + off), sy + dy * t + py * (a2 + off)]);
+          }
+          paths.push({ pts, prog: 0, done: false });
         }
-        paths.push({ pts, prog: 0, done: false });
+        // Alles zusammen in den sichtbaren Bereich schieben, passt es nicht, wird die Spur flacher und enger
+        let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+        paths.forEach((p) => p.pts.forEach((q) => { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }));
+        const shx = x0 < pad ? pad - x0 : (x1 > W - pad ? (W - pad) - x1 : 0);
+        const shy = y0 < pad ? pad - y0 : (y1 > maxY ? maxY - y1 : 0);
+        paths.forEach((p) => p.pts.forEach((q) => { q[0] += shx; q[1] += shy; }));
+        const fits = x0 + shx >= pad - 1 && x1 + shx <= W - pad + 1 && y0 + shy >= pad - 1 && y1 + shy <= maxY + 1;
+        if (fits) break;
       }
       tr = { paths, w, t0: performance.now(), lvl, resets: 0, done: false, fingers: {} };
       const hold = $('hold');
@@ -493,6 +508,9 @@
       lockUntil = 0;
       sendHb();
       render();
+      // Am Ende der Spur geht das Licht gleich weiter, ohne noch einmal zu tippen
+      const light = myLight();
+      if (light && !light.z && !st.paused && holding) setTimeout(() => { if (holding && tr && tr.done) finishPass(myLight() || light, false); }, 180);
     }
     function traceMove(e) {
       const f = tr && tr.fingers[e.pointerId];
@@ -724,7 +742,7 @@
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
       else if (tg.msg) msg = tg.msg;
       else if (iHold && tr && !tr.done) msg = tr.paths.length > 1 ? `Zieh die ${tr.paths.length} Spuren gleichzeitig` : 'Zieh den Punkt die Spur entlang';
-      else if (iHold && tr && tr.done) msg = 'Geschafft! Jetzt weitergeben';
+      else if (iHold && tr && tr.done) msg = 'Geschafft!';
       else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
@@ -919,6 +937,7 @@
 
     function finishPass(light, collect) {
       mtHit = 0;
+      traceEnd();
       holding = false;
       lightTapped = false;
       clearTimeout(starTimer);
