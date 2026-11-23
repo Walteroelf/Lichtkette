@@ -94,6 +94,8 @@
     const starTotal = () => { const l = myLight(); return l && l.n > 0 ? l.n : 1; };
     const starsDone = () => starCount >= starTotal();
     const starTapNeeded = () => treasureHere() && !starAuto();
+    // Schatz-Licht, schwerer: Am Touch-Gerät muss der Stern in einen Korb gezogen werden, der den Platz wechselt
+    const dragMode = () => !!(st && st.sb === 1 && mode === 'touch' && st.gm === 'schatz' && starTapNeeded());
 
     const scrMode = $('scr-mode');
     const scrPlay = $('scr-play');
@@ -136,7 +138,7 @@
     }
 
     // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
-    const useRandom = () => eTarget() === 'rnd' && mode !== 'taster';
+    const useRandom = () => eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
     const hintText = () => {
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
@@ -335,6 +337,47 @@
     });
 
     // Zufällige Stelle für den Punkt: nicht in der Mitte, nicht am Rand, nicht wieder an der letzten Stelle
+    // Muster auf dem Gerät spiegeln: Die Reihenfolge erscheint Symbol für Symbol und bleibt als Reihe stehen
+    let muFk = -1;
+    function muStrip(tapGm) {
+      const el = $('muStrip');
+      const mu = st && st.gm === 'muster' ? st.mu : null;
+      const ph = mu ? mu.ph : '';
+      const showIt = tapGm && mu && st.ph === 'play' && !st.finale && mu.sq.length && ['show', 'shown', 'go', 'again', 'next'].includes(ph);
+      el.hidden = !showIt;
+      if (!showIt) { muFk = -1; return; }
+      const upto = ph === 'show' ? (mu.si === undefined ? -1 : mu.si) : mu.sq.length - 1;
+      el.innerHTML = mu.sq.map((id, k) => {
+        const sl = st.players[id];
+        if (sl === undefined || k > upto) return '<i class="mu-empty"></i>';
+        const cls = ['mu-s'];
+        if (ph === 'show' && mu.cur === id && k === mu.si) cls.push('now');
+        if ((ph === 'go' && k < mu.i) || ph === 'next') cls.push('done');
+        else if (ph === 'go' && k === mu.i) cls.push('next');
+        return `<i class="${cls.join(' ')}" style="color:${LK.COLORS[sl % LK.COLORS.length]}">${LK.shapeSvg(sl)}</i>`;
+      }).join('');
+      // Wer gerade gezeigt wird, spielt den eigenen Ton auf seinem Gerät
+      if (ph === 'show' && mu.cur === ID && mu.fk !== muFk) { muFk = mu.fk; if (sound && slot >= 0) LK.audio.note(slot, 0.4, 1.0); }
+    }
+
+    // Countdown 3, 2, 1 auf allen Geräten (ab dem Moment, in dem das Gerät "count" sieht)
+    let cdAt = 0;
+    let cdTick = null;
+    function cdShow() {
+      const left = Math.max(0, (st.cd || 3000) - (performance.now() - cdAt));
+      const n = Math.max(1, Math.ceil(left / 1000));
+      if ($('cdNum').textContent !== String(n)) { $('cdNum').textContent = String(n); try { navigator.vibrate && navigator.vibrate(30); } catch (e) { /* egal */ } }
+    }
+    function cdSync(fresh) {
+      const on = fresh && st.ph === 'count' && !st.finale;
+      if (on && !cdAt) { cdAt = performance.now(); $('cdNum').textContent = ''; cdTick = setInterval(cdShow, 100); cdShow(); }
+      if (!on && cdAt) { cdAt = 0; clearInterval(cdTick); }
+      $('cdOv').hidden = !on || performance.now() - cdAt > (st.cd || 3000) + 600;
+    }
+    // Staffel/Tauziehen, Schwierigkeit: mehrere Treffer pro Weitergabe (nur Touch). Das Symbol springt nach jedem Treffer.
+    let mtHit = 0;
+    // Die Einstellung des Spiels gilt für Touch. Taster und Blick-Maus machen nur mit, wenn die Tafel es für dieses Gerät eingestellt hat.
+    const mtNeed = () => { if (!st || !LK.isTeamGm(st.gm)) return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
     function placeTarget() {
       const hold = $('hold');
       const w = window.innerWidth;
@@ -442,6 +485,7 @@
         holding = true;
         lightTapped = false;
         starCount = 0;
+        mtHit = 0;
         clearTimeout(starTimer);
         lastStarPos = null;
         $('star').dataset.placed = '';
@@ -473,6 +517,8 @@
       // erscheint trotzdem ein gelber Stern, aber ohne Funktion (er reagiert nicht auf Tippen und löst nichts aus).
       const showStarAuto = !!(iHold && holding && treasureHere() && starAuto());
       $('star').hidden = !(showStar || showStarAuto);
+      if (!showStar || !dragMode()) $('basket').hidden = true;
+      else if ($('basket').hidden) { $('star').dataset.placed = ''; }
       $('star').classList.toggle('auto', showStarAuto);
       if (showStar && !$('star').dataset.placed) { placeStar(); armStarJump(); }
       else if (showStarAuto && !$('star').dataset.placed) placeStar();
@@ -487,6 +533,8 @@
         $('pickHint').textContent = mode === 'taster' ? 'Jeder Druck wechselt das Team.' : 'Tippe auf dein Team.';
       }
       scrPlay.classList.toggle('on', iHold || tg.on);
+      scrPlay.classList.toggle('mine', tapGm); // Muster/Geheim: eigenes Symbol bleibt gut sichtbar in der Mitte
+      muStrip(tapGm);
       scrPlay.classList.toggle('fin', isFin);
       $('hold').classList.toggle('locked', (iHold && (performance.now() < lockUntil || paused)) || (tg.target && tg.locked));
 
@@ -508,12 +556,14 @@
       else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';
       $('msg').textContent = msg;
+      cdSync(fresh);
       $('msg').classList.toggle('quiet', !iHold && !isFin);
 
       // Kleine Zeile oben: Team, Licht-Nummer, Stern
       const bits = [];
       if (fresh && LK.isTeamGm(st.gm) && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
       if (iHold && st.gm === 'doppel') bits.push(`Licht ${light.k + 1}`);
+      if (iHold && mtNeed() > 1) bits.push(`Tipp ${Math.min(mtHit + 1, mtNeed())} von ${mtNeed()}`);
       if (fresh && st.gm === 'schatz' && st.stars && st.stars.includes(ID)) bits.push('★ Hier liegt ein Stern');
       $('tag').textContent = bits.join(' · ');
 
@@ -556,6 +606,7 @@
       } else {
         const ge = st.ge;
         const l = st.lights[0];
+        if (ge && ge.rp) { r.on = ge.cur === ID; r.msg = r.on ? 'Das bist du!' : 'Schau auf die Tafel: die ganze Reihe'; return r; }
         if (!ge || !l || !l.h) return r;
         if (l.h === ID) { r.on = true; r.msg = 'Du hast das Licht. Die anderen suchen den Nächsten.'; }
         else if (ge.ex && ge.ex.includes(ID)) r.msg = 'Du bist es nicht. Warte auf den nächsten Schritt.';
@@ -620,6 +671,20 @@
         return;
       }
       // Kein Schatz bei diesem Gerät, oder "ein Tipp reicht": Beim Weitergeben werden alle Sterne dieses Geräts eingesammelt
+      if (mtNeed() > 1) {
+        mtHit++;
+        if (mtHit < mtNeed()) {
+          if (sound && slot >= 0) LK.audio.note(slot, 0.25, 0.8, 0, 2);
+          if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* egal */ } }
+          lockUntil = performance.now() + (mode === 'touch' ? 250 : Math.max(400, lockMs()));
+          if (useRandom()) placeTarget();
+          flashMsg = `${mtHit} von ${mtNeed()} ✓`;
+          flashUntil = performance.now() + 900;
+          render();
+          setTimeout(render, 950);
+          return;
+        }
+      }
       finishPass(light, treasureHere());
     }
 
@@ -672,11 +737,12 @@
       const sj = st && st.sj ? st.sj : 0;
       if (!sj) return;
       starTimer = setTimeout(() => {
-        if (holding && starTapNeeded() && !starsDone()) { placeStar(); armStarJump(); }
+        if (holding && starTapNeeded() && !starsDone() && !starDrag) { placeStar(); armStarJump(); }
       }, sj * 1000);
     }
 
     function finishPass(light, collect) {
+      mtHit = 0;
       holding = false;
       lightTapped = false;
       clearTimeout(starTimer);
@@ -722,6 +788,28 @@
     }
 
     // Zufällige Stelle für den Stern: nicht auf dem Punkt oder Kreis, nicht am Rand
+    function placeBasket(sx, sy, d, ox, oy, or, fullScreen) {
+      const b = $('basket');
+      if (!dragMode()) { b.hidden = true; return; }
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const bw = d * 1.6;
+      const bh = bw * 0.8;
+      let x = w / 2;
+      let y = h * 0.4;
+      for (let i = 0; i < 150; i++) {
+        const cx = bw / 2 + 12 + Math.random() * Math.max(1, w - bw - 24);
+        const cy = bh / 2 + 12 + Math.random() * Math.max(1, h * 0.78 - bh - 24);
+        const farStar = Math.hypot(cx - sx, cy - sy) > Math.max(w, h) * 0.3 || i > 120;
+        const free = fullScreen || Math.hypot(cx - ox, cy - oy) > or + bw / 2 + 12 || i > 130;
+        if (farStar && free) { x = cx; y = cy; break; }
+      }
+      b.style.width = `${bw}px`;
+      b.style.height = `${bh}px`;
+      b.style.left = `${x}px`;
+      b.style.top = `${y}px`;
+      b.hidden = false;
+    }
     function placeStar() {
       const star = $('star');
       const w = window.innerWidth;
@@ -744,6 +832,7 @@
         if (free && farFromLast) { x = cx; y = cy; break; }
       }
       lastStarPos = { x, y };
+      placeBasket(x, y, d, ox, oy, or, fullScreen);
       star.style.width = `${d}px`;
       star.style.height = `${d}px`;
       star.style.left = `${x}px`;
@@ -775,15 +864,60 @@
       if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) { if (pickActive()) choose(curPick() === 'a' ? 'b' : 'a'); else confirm(); } }
     });
     // Der gelbe Stern ist ein eigenes Ziel (liegt über dem Licht-Ziel, löst das Licht nicht aus)
+    let starDrag = null;
     const starBtn = $('star');
     starBtn.innerHTML = LK.shapeSvg(6);
-    starBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.pointerType === 'touch') { e.preventDefault(); tapStar(); } });
-    starBtn.addEventListener('click', (e) => { e.stopPropagation(); if (keyClick(e)) return; tapStar(); });
+    starBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (dragMode()) {
+        if (!holding || performance.now() < lockUntil || starsDone()) return;
+        e.preventDefault();
+        starDrag = { x0: starBtn.style.left, y0: starBtn.style.top };
+        starBtn.classList.add('drag');
+        try { starBtn.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+        return;
+      }
+      if (e.pointerType === 'touch') { e.preventDefault(); tapStar(); }
+    });
+    starBtn.addEventListener('pointermove', (e) => {
+      if (!starDrag) return;
+      starBtn.style.left = `${e.clientX}px`;
+      starBtn.style.top = `${e.clientY}px`;
+    });
+    const endDrag = (e) => {
+      if (!starDrag) return;
+      const b = $('basket').getBoundingClientRect();
+      const hit = Math.abs(e.clientX - (b.left + b.width / 2)) < b.width * 0.5 && Math.abs(e.clientY - (b.top + b.height / 2)) < b.height * 0.55;
+      const d0 = starDrag;
+      starDrag = null;
+      starBtn.classList.remove('drag');
+      if (hit && e.type === 'pointerup') {
+        const light = myLight();
+        if (light && !light.z && !st.paused) { tapStar(); return; }
+      }
+      starBtn.style.left = d0.x0;
+      starBtn.style.top = d0.y0;
+    };
+    starBtn.addEventListener('pointerup', endDrag);
+    starBtn.addEventListener('pointercancel', endDrag);
+    starBtn.addEventListener('click', (e) => { e.stopPropagation(); if (dragMode()) return; if (keyClick(e)) return; tapStar(); });
 
     // Fehltipp (nur Staffel, nur wenn die Tafel Strafpause eingeschaltet hat und dieses Gerät mitmacht):
     // ein Tipp im falschen Moment (kein Licht da) oder neben den Punkt bzw. Kreis
     scrPlay.addEventListener('pointerdown', (e) => {
-      if (!active || !eMiss() || mode === 'taster' || !st) return;
+      // Schwierigkeit "fängt von vorn an": ein Tipp neben das Symbol setzt die Treffer zurück
+      if (active && st && mode !== 'blick' && mtNeed() > 1 && st.mf && holding && mtHit > 0 && !e.target.closest('button') && performance.now() >= lockUntil && st.ph === 'play' && !st.finale && !st.paused) {
+        mtHit = 0;
+        lockUntil = performance.now() + 400;
+        if (useRandom()) placeTarget();
+        flashMsg = 'Daneben! Von vorn';
+        flashUntil = performance.now() + 1100;
+        scrPlay.classList.remove('miss'); void scrPlay.offsetWidth; scrPlay.classList.add('miss');
+        render();
+        setTimeout(render, 1150);
+        return;
+      }
+      if (!active || !eMiss() || mode === 'taster' || mode === 'blick' || !st) return; // Augensteuerung: nie Fehltipps oder Strafe
       if (!LK.isTeamGm(st.gm) || st.ph !== 'play' || st.finale || st.paused || !st.pen) return;
       if (e.target.closest('button')) return; // Treffer oder Bedienknopf
       const now = performance.now();

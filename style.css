@@ -534,3 +534,41 @@ dialog .btn.close {
 .sw-help summary { cursor: pointer; color: var(--fg); padding: 8px 0; }
 .sw-help ul { margin: 4px 0 8px; padding-left: 20px; line-height: 1.5; }
 .sw-help li { margin-bottom: 6px; }
+
+/* Großer Start-Knopf */
+#goBtn { font-size: clamp(26px, 5vmin, 52px); padding: 0.55em 1.6em; border-radius: 999px; box-shadow: 0 0 40px rgba(255,214,120,.35); }
+
+/* Countdown auf den Geräten */
+#cdOv { position: fixed; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vmin; background: rgba(8,10,24,.88); pointer-events: none; }
+#cdOv[hidden] { display: none; }
+#cdOv b { font-size: 42vmin; line-height: 1; font-weight: 700; color: #f0f2ff; }
+#cdOv span { font-size: 4vmin; color: var(--muted); }
+
+/* Einstellungsfenster: nie scrollen, bei Bedarf passt sich die Größe der Tafel an */
+dialog { max-height: calc(94dvh / var(--z, 1)); }
+
+/* Muster auf dem Gerät: Reihenfolge als Reihe oben, eigenes Symbol groß in der Mitte */
+#muStrip { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 0; right: 0; display: flex; justify-content: center; gap: 1.6vmin; padding: 0 14px; z-index: 4; pointer-events: none; flex-wrap: wrap; }
+#muStrip[hidden] { display: none; }
+#muStrip i { width: clamp(30px, 8vmin, 64px); height: clamp(30px, 8vmin, 64px); display: block; opacity: .85; transition: transform .25s, opacity .25s; }
+#muStrip i svg { width: 100%; height: 100%; fill: currentColor; stroke: currentColor; }
+#muStrip i.mu-empty { opacity: .18; border: 2px dashed var(--muted); border-radius: 50%; }
+#muStrip i.now { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 14px currentColor); }
+#muStrip i.done { opacity: .3; }
+#muStrip i.next { opacity: 1; transform: scale(1.12); }
+#scr-play.mine #shape { opacity: .9; transform: scale(1); }
+#muHelp { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); padding: 10px 22px; z-index: 3; }
+#muHelp[hidden] { display: none; }
+
+/* Sterne in den Korb ziehen (Touch) */
+#basket { position: absolute; transform: translate(-50%, -50%); z-index: 1; pointer-events: none; filter: drop-shadow(0 0 18px rgba(253,224,71,.35)); }
+#basket[hidden] { display: none; }
+#basket svg { width: 100%; height: 100%; display: block; }
+#star { touch-action: none; }
+#star.drag { animation: none; transition: none; cursor: grabbing; z-index: 5; }
+
+/* Spielliste: nur die Namen, damit viele Spiele auf einen Blick passen */
+#viewGames .gcards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+#viewGames .gcard { padding: 14px 14px; }
+.topbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.topbtns .btn { flex: 1 1 auto; }

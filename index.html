@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261119-1615">
+<meta name="build" content="20261123-1040">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -31,7 +31,7 @@
 })();
 </script>
 <title>Lichtkette</title>
-<link rel="stylesheet" href="style.css?v=20261119-1615">
+<link rel="stylesheet" href="style.css?v=20261123-1040">
 </head>
 <body>
 
@@ -110,6 +110,16 @@
       <div data-tfor="klassik" class="t-row">
         <label>Modus</label>
         <div class="seg wide"><button data-ttm="0">Ruhig</button><button data-ttm="1">Zeitspiel</button></div>
+      </div>
+      <div data-tfor="schatz" class="t-row">
+        <label>Sterne einsammeln am Touch-Gerät</label>
+        <div class="seg wide"><button data-tsb="0">antippen</button><button data-tsb="1">in den Korb ziehen</button></div>
+      </div>
+      <div data-tfor="staffel zieh" class="t-row">
+        <label>Schwierigkeit: Tipps pro Weitergabe (am Touch-Gerät springt das Symbol nach jedem Treffer)</label>
+        <div class="seg wide"><button data-tmt="1">1</button><button data-tmt="2">2</button><button data-tmt="3">3</button></div>
+        <label>Tipp daneben</label>
+        <div class="seg wide"><button data-tmf="0">egal</button><button data-tmf="1">fängt von vorn an</button></div>
       </div>
       <div data-tfor="dunkel" class="t-row">
         <label>Tempo der Dunkelheit (steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat)</label>
@@ -257,10 +267,13 @@
   <div id="center">
     <div id="shape"></div>
   </div>
+  <div id="muStrip" hidden aria-hidden="true"></div>
   <p id="tag"></p>
   <p id="msg"></p>
+  <div id="cdOv" hidden aria-live="assertive"><b id="cdNum"></b><span>Mach dich bereit</span></div>
   <p id="hint" class="sr-only"></p>
   <button id="hold" aria-label="Licht weitergeben" hidden></button>
+  <div id="basket" hidden aria-hidden="true"><svg viewBox="0 0 100 80"><path d="M6 14 L94 14 L80 76 L20 76 Z" fill="#a16a35" stroke="#d4a05a" stroke-width="5" stroke-linejoin="round"/><path d="M12 36 H88 M17 56 H83 M35 14 L38 76 M65 14 L62 76" stroke="rgba(70,40,15,.55)" stroke-width="3" fill="none"/><ellipse cx="50" cy="14" rx="44" ry="9" fill="#2a1f0c" stroke="#d4a05a" stroke-width="5"/></svg></div>
   <button id="star" aria-label="Stern einsammeln" hidden></button>
   <div id="prog"><i></i></div>
   <span id="conn" class="dot bad"></span>
@@ -294,6 +307,7 @@
   <button id="fsTafel" type="button" aria-label="Vollbild" title="Vollbild">⛶</button>
   <button id="goBtn" class="big-btn" hidden>Los ▶</button>
   <button id="shakeBtn" class="btn" hidden>🎲 Teams neu würfeln</button>
+  <button id="muHelp" class="btn ghost" hidden aria-pressed="false">Hilfslinien: aus</button>
   <button id="saveBtn" class="btn" hidden>💾 Bild speichern</button>
 
   <div id="startOv" class="overlay">
@@ -326,14 +340,14 @@
     </div>
     <div class="stack tight">
       <label>Größe des Punkts oder Kreises</label>
-      <div class="seg wide" data-cfg="sz" data-type="float"><button data-v="0.6">klein</button><button data-v="0.75">normal</button><button data-v="1">groß</button><button data-v="1.4">sehr groß</button></div>
+      <div class="seg wide" data-cfg="sz" data-type="float"><button data-v="0.35">klein</button><button data-v="0.75">normal</button><button data-v="1">groß</button><button data-v="1.4">sehr groß</button></div>
     </div>
     <div class="stack tight">
       <label>Stern einsammeln (Schatz-Licht)</label>
       <div class="seg wide" data-cfg="sa" data-type="int"><button data-v="1">ein Tipp reicht</button><button data-v="0">Stern extra antippen</button></div>
     </div>
     <div class="stack tight">
-      <label>Fehltipps (Staffel, Tippen und Maus)</label>
+      <label>Fehltipps (Staffel, nur Tippen und Maus, nie bei Blick-Maus)</label>
       <div class="seg wide" data-cfg="pn" data-type="int"><button data-v="0">ohne Strafe</button><button data-v="1">mit Strafe</button></div>
     </div>
     <div class="stack tight">
@@ -344,6 +358,11 @@
       <label>Licht wandert weiter nach</label>
       <div class="seg wide" data-cfg="w" data-type="int"><button data-v="0">nie</button><button data-v="10">10 s</button><button data-v="30">30 s</button></div>
     </div>
+    <div class="stack tight">
+      <label>Tipps pro Weitergabe (Staffel und Tauziehen; „wie Spiel“ = Einstellung des Spiels, die gilt nur für Touch. Für Taster und Blick-Maus hier 2 oder 3 wählen, dann springt dort auch der Punkt, wenn „springender Punkt“ gewählt ist)</label>
+      <div class="seg wide" data-cfg="mt" data-type="int"><button data-v="">wie Spiel</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div>
+    </div>
+    <p id="devTime" class="info" hidden></p>
     <div class="stack tight">
       <label>Team (Staffel, wirkt vor dem Start einer Runde)</label>
       <div class="seg wide" data-cfg="tt" data-type="str"><button data-v="x">automatisch</button><button data-v="a">Blau</button><button data-v="b">Pink</button></div>
@@ -357,32 +376,39 @@
     <h2 tabindex="-1" autofocus>Tafel</h2>
     <!-- Ansicht 1: Spielart wählen, darunter die grundlegenden Einstellungen -->
     <div id="viewGames">
+      <div class="topbtns"><button type="button" id="curGame" class="btn cur">Aktuelles Spiel: Einstellungen ›</button>
+      <button type="button" id="basicsBtn" class="btn ghost">⚙ Allgemeines</button></div>
       <div id="modeBox">
-      <button type="button" id="curGame" class="btn cur">Aktuelles Spiel: Einstellungen ›</button>
       <h3 class="ggroup">Einfach</h3>
       <div class="gcards">
-        <button type="button" class="gcard" data-gm="basal"><b>Basal (ganz einfach)</b><small>Das Licht wandert ohne Zeitdruck und ohne Ziel. Große Fläche, weicher Ton.</small></button>
-        <button type="button" class="gcard" data-gm="klassik"><b>Lichtkette</b><small>Ein Licht wandert zufällig von Gerät zu Gerät. Auch als Zeitspiel.</small></button>
+        <button type="button" class="gcard" data-gm="basal" title="Das Licht wandert ohne Zeitdruck und ohne Ziel. Große Fläche, weicher Ton."><b>Basal (ganz einfach)</b></button>
+        <button type="button" class="gcard" data-gm="klassik" title="Ein Licht wandert zufällig von Gerät zu Gerät. Auch als Zeitspiel."><b>Lichtkette</b></button>
       </div>
       <h3 class="ggroup">Alle zusammen</h3>
       <div class="gcards">
-        <button type="button" class="gcard" data-gm="dunkel"><b>Die Dunkelheit</b><small>Ein Nebel kriecht heran. Gemeinsam das Gruppenlicht am Leben halten.</small></button>
-        <button type="button" class="gcard" data-gm="bild"><b>Lichtbild</b><small>Die Lichtspuren ergeben ein gemeinsames Bild zum Speichern.</small></button>
-        <button type="button" class="gcard" data-gm="schatz"><b>Schatz-Licht</b><small>Das Licht sammelt Sterne ein, die bei einzelnen Geräten liegen.</small></button>
-        <button type="button" class="gcard" data-gm="doppel"><b>Doppelte Lichter</b><small>Zwei oder drei Lichter gleichzeitig.</small></button>
+        <button type="button" class="gcard" data-gm="dunkel" title="Ein Nebel kriecht heran. Gemeinsam das Gruppenlicht am Leben halten."><b>Die Dunkelheit</b></button>
+        <button type="button" class="gcard" data-gm="bild" title="Die Lichtspuren ergeben ein gemeinsames Bild zum Speichern."><b>Lichtbild</b></button>
+        <button type="button" class="gcard" data-gm="schatz" title="Das Licht sammelt Sterne ein, die bei einzelnen Geräten liegen."><b>Schatz-Licht</b></button>
+        <button type="button" class="gcard" data-gm="doppel" title="Zwei oder drei Lichter gleichzeitig."><b>Doppelte Lichter</b></button>
       </div>
       <h3 class="ggroup">Team gegen Team</h3>
       <div class="gcards">
-        <button type="button" class="gcard" data-gm="staffel"><b>Staffel</b><small>Zwei Teams, wer zuerst die Weitergaben schafft, gewinnt.</small></button>
-        <button type="button" class="gcard" data-gm="zieh"><b>Tauziehen</b><small>Zwei Teams ziehen an einem Seil. Aufholen ist möglich.</small></button>
+        <button type="button" class="gcard" data-gm="staffel" title="Zwei Teams, wer zuerst die Weitergaben schafft, gewinnt."><b>Staffel</b></button>
+        <button type="button" class="gcard" data-gm="zieh" title="Zwei Teams ziehen an einem Seil. Aufholen ist möglich."><b>Tauziehen</b></button>
       </div>
       <h3 class="ggroup">Knobeln</h3>
       <div class="gcards">
-        <button type="button" class="gcard" data-gm="muster"><b>Muster nachspielen</b><small>Reihenfolge merken und nachspielen, jede Runde länger.</small></button>
-        <button type="button" class="gcard" data-gm="geheim"><b>Geheime Reihenfolge</b><small>Die Gruppe findet heraus, wer als Nächstes dran ist.</small></button>
+        <button type="button" class="gcard" data-gm="muster" title="Reihenfolge merken und nachspielen, jede Runde länger."><b>Muster nachspielen</b></button>
+        <button type="button" class="gcard" data-gm="geheim" title="Die Gruppe findet heraus, wer als Nächstes dran ist."><b>Geheime Reihenfolge</b></button>
       </div>
 
-      <h3 class="ggroup">Grundlegendes</h3>
+      </div>
+    </div>
+
+    <div id="viewBasics" class="stack" hidden>
+      <button type="button" id="backFromBasics" class="btn ghost back">‹ Alle Spiele</button>
+      <h3 class="gtitle">Allgemeines</h3>
+      <div id="nrBox">
       <div class="stack tight">
         <label>Nach einer Runde</label>
         <div class="seg wide"><button data-nr="1">wartet auf „Neue Runde“</button><button data-nr="0">geht automatisch weiter</button></div>
@@ -400,6 +426,7 @@
         <button id="copyBtn" class="btn">Spieler-Link kopieren</button>
         <button id="newRoomBtn" class="btn ghost">Neuen Raumcode erzeugen</button>
         <button id="sndBtn" class="btn ghost">Ton: an</button>
+        <button id="ztBtn" class="btn ghost">Zeit pro Weitergabe: aus</button>
         <button id="teacherQrBtn" class="btn ghost">Lehrer-QR anzeigen</button>
         <button id="fsBtn" class="btn ghost">Vollbild</button>
       </div>
@@ -415,6 +442,10 @@
         <label>Modus</label>
         <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
       </div>
+      <div data-for="schatz" class="stack tight">
+        <label>Sterne einsammeln am Touch-Gerät (der Korb wechselt nach jedem Stern den Platz)</label>
+        <div class="seg wide"><button data-sb="0">antippen</button><button data-sb="1">in den Korb ziehen</button></div>
+      </div>
       <div data-for="staffel zieh" class="stack tight">
         <label>Serie (Siegpunkte über mehrere Runden)</label>
         <div class="seg wide"><button data-ser="0">aus</button><button data-ser="2">Best of 3</button><button data-ser="3">Best of 5</button></div>
@@ -422,6 +453,12 @@
         <div class="seg wide"><button data-tsel="0">zufällig</button><button data-tsel="1">Schüler wählen</button></div>
         <label>Strafpause bei Fehltipp (nur Geräte, die „mit Strafe“ eingestellt sind)</label>
         <div class="seg wide"><button data-pen="0">aus</button><button data-pen="2">2 s</button><button data-pen="4">4 s</button></div>
+      </div>
+      <div data-for="staffel zieh" class="stack tight">
+        <label>Schwierigkeit: Tipps pro Weitergabe (am Touch-Gerät springt das Symbol nach jedem Treffer)</label>
+        <div class="seg wide"><button data-mt="1">1</button><button data-mt="2">2</button><button data-mt="3">3</button></div>
+        <label>Tipp daneben (nur bei mehr als 1 Tipp)</label>
+        <div class="seg wide"><button data-mf="0">egal</button><button data-mf="1">fängt von vorn an</button></div>
       </div>
       <div data-for="dunkel" class="stack tight">
         <label>Tempo der Dunkelheit (steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat)</label>
@@ -453,13 +490,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261119-1615"></script>
-<script src="lib/qrcode.js?v=20261119-1615"></script>
-<script src="shared.js?v=20261119-1615"></script>
-<script src="net.js?v=20261119-1615"></script>
-<script src="board.js?v=20261119-1615"></script>
-<script src="player.js?v=20261119-1615"></script>
-<script src="teacher.js?v=20261119-1615"></script>
-<script src="main.js?v=20261119-1615"></script>
+<script src="lib/mqtt.min.js?v=20261123-1040"></script>
+<script src="lib/qrcode.js?v=20261123-1040"></script>
+<script src="shared.js?v=20261123-1040"></script>
+<script src="net.js?v=20261123-1040"></script>
+<script src="board.js?v=20261123-1040"></script>
+<script src="player.js?v=20261123-1040"></script>
+<script src="teacher.js?v=20261123-1040"></script>
+<script src="main.js?v=20261123-1040"></script>
 </body>
 </html>

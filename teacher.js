@@ -23,11 +23,12 @@
   // Einstellungen pro Gerät: Schlüssel, Beschriftung, Werte (leer = das Gerät entscheidet selbst)
   const OPTS = [
     { key: 'rnd', label: 'Tippfläche', type: 'int', vals: [['0', 'fest'], ['1', 'springender Punkt']] },
-    { key: 'sz', label: 'Größe des Punkts oder Kreises', type: 'float', vals: [['0.6', 'klein'], ['0.75', 'normal'], ['1', 'groß'], ['1.4', 'sehr groß']] },
+    { key: 'sz', label: 'Größe des Punkts oder Kreises', type: 'float', vals: [['0.35', 'klein'], ['0.75', 'normal'], ['1', 'groß'], ['1.4', 'sehr groß']] },
     { key: 'sa', label: 'Stern einsammeln (Schatz-Licht): Taster = zweimal drücken (erst Stern, dann Licht), Blick = zweites Ziel', type: 'int', vals: [['1', 'ein Tipp reicht'], ['0', 'Stern extra antippen']] },
     { key: 'pn', label: 'Fehltipps (Staffel)', type: 'int', vals: [['0', 'ohne Strafe'], ['1', 'mit Strafe']] },
     { key: 'nt', label: 'Zeit dieses Geräts (Zeitspiel, Staffel)', type: 'int', vals: [['0', 'zählt'], ['1', 'zählt nicht']] },
     { key: 'w', label: 'Licht wandert weiter nach', type: 'int', vals: [['0', 'nie'], ['10', '10 s'], ['30', '30 s']] },
+    { key: 'mt', label: 'Tipps pro Weitergabe (Staffel/Tauziehen; „wie Spiel“ gilt nur für Touch)', type: 'int', vals: [['', 'wie Spiel'], ['1', '1'], ['2', '2'], ['3', '3']] },
     { key: 'tt', label: 'Team (Staffel, wirkt vor dem Start einer Runde)', type: 'str', vals: [['x', 'automatisch'], ['a', 'Blau'], ['b', 'Pink']] },
   ];
 
@@ -174,7 +175,7 @@
     // ---------- Steuerung ----------
     $('tPause').addEventListener('click', () => { if (priv) send({ c: 'pause', on: !priv.paused }); });
     $('tGo').addEventListener('click', () => send({ c: 'go' }));
-    $('tMuAgain').addEventListener('click', () => send({ c: 'muagain' }));
+    $('tMuAgain').addEventListener('click', () => send({ c: (priv && priv.mup === 'ready') ? 'mugo' : 'muagain' }));
     $('tRestart').addEventListener('click', () => { if (window.confirm('Die laufende Runde abbrechen und neu starten?')) send({ c: 'restart' }); });
 
     const setting = (attr, key, parse) => document.querySelectorAll(`[data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
@@ -198,11 +199,16 @@
     setting('tsj', 'sj', (v) => parseInt(v, 10));
     setting('tser', 'ser', (v) => parseInt(v, 10));
     setting('tdkv', 'dkv', (v) => parseInt(v, 10));
+    setting('tmt', 'mt', (v) => parseInt(v, 10));
+    setting('tmf', 'mf', (v) => parseInt(v, 10));
+    setting('tsb', 'sb', (v) => parseInt(v, 10));
     // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
     document.querySelectorAll('[data-tgnstep]').forEach((b) => b.addEventListener('click', () => {
       if (!priv) return;
       const base = priv.gn || priv.goal || 10;
-      send({ c: 'settings', patch: { gn: Math.min(100, Math.max(5, Math.round((base + parseInt(b.dataset.tgnstep, 10)) / 5) * 5)) } });
+      const k = priv.gm === 'zieh' ? 1 : 5;
+      const v = base + (parseInt(b.dataset.tgnstep, 10) > 0 ? 1 : -1) * k;
+      send({ c: 'settings', patch: { gn: priv.gm === 'zieh' ? Math.min(20, Math.max(1, v)) : Math.min(100, Math.max(5, Math.round(v / 5) * 5)) } });
     }));
     $('tGnAuto').addEventListener('click', () => send({ c: 'settings', patch: { gn: 0 } }));
     setting('ttsel', 'tsel', (v) => parseInt(v, 10));
@@ -275,7 +281,8 @@
       $('tSummary').textContent = `${TITLES[p.gm] || ''}${p.gm === 'klassik' && p.tm ? ' (Zeitspiel)' : ''}${serie} · Runde ${p.round} · ${phase} · ${p.n} ${p.n === 1 ? 'Gerät' : 'Geräte'}`;
       const muPh = (p.gm === 'muster' && p.ph === 'play' && !p.finale) ? p.mup : '';
       $('tGo').hidden = !((p.ph === 'ready' && p.n > 0) || muPh === 'ready' || muPh === 'shown');
-      $('tMuAgain').hidden = muPh !== 'shown';
+      $('tMuAgain').hidden = !(muPh === 'shown' || (muPh === 'ready' && p.mag));
+      $('tMuAgain').textContent = muPh === 'ready' ? 'Direkt noch einmal versuchen' : 'Noch einmal zeigen';
       const canPause = p.ph === 'play' && !p.finale;
       $('tPause').disabled = !canPause;
       $('tPause').textContent = p.paused ? '▶ Weiter' : '⏸ Pause';
@@ -294,12 +301,16 @@
       mark('tsj', p.sj);
       mark('tser', p.ser);
       mark('tdkv', p.dkv);
+      mark('tmt', p.mt);
+      mark('tmf', p.mf);
+      mark('tsb', p.sb);
       $('tGnVal').textContent = p.gn ? String(p.gn) : `Auto (${p.goal})`;
       mark('ttsel', p.tsel);
       $('tShake').hidden = !(LK.isTeamGm(p.gm) && p.ph === 'ready' && p.n > 0);
-      $('tGo').textContent = muPh === 'ready' ? (p.mag ? 'Noch einmal zeigen ▶' : 'Reihenfolge zeigen ▶') : (muPh === 'shown' ? 'Jetzt nachspielen ▶' : (p.round > 1 ? 'Neue Runde ▶' : 'Los ▶'));
+      $('tGo').textContent = muPh === 'ready' ? (p.mag ? 'Reihenfolge noch einmal zeigen ▶' : 'Reihenfolge zeigen ▶') : (muPh === 'shown' ? 'Jetzt nachspielen ▶' : (p.round > 1 ? 'Neue Runde starten ▶' : 'Spiel starten ▶'));
       document.querySelectorAll('[data-tfor]').forEach((el) => { el.hidden = !el.dataset.tfor.split(' ').includes(p.gm); });
       $('tGnLabel').textContent = GN_LABEL[p.gm] || '';
+      document.querySelectorAll('[data-tgnstep]').forEach((b) => { const k = p.gm === 'zieh' ? 1 : 5; const up = parseInt(b.dataset.tgnstep, 10) > 0; b.textContent = (up ? '+' : '−') + k; });
       $('tGnLabel').hidden = p.gm === 'basal';
       $('tGnLabel').nextElementSibling.hidden = p.gm === 'basal';
 

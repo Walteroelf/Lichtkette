@@ -15,7 +15,9 @@
   const FINALE_MS = 5200;
   const GONE_MS = 14000; // so lange ohne Lebenszeichen, dann fliegt ein Gerät aus dem Spiel
   // Ziel pro Runde: 0 = automatisch, sonst 5 bis 100 in 5er-Schritten
-  const validGn = (v) => v === 0 || (Number.isInteger(v) && v >= 5 && v <= 100 && v % 5 === 0);
+  const validGn = (v) => v === 0 || (Number.isInteger(v) && ((v >= 5 && v <= 100 && v % 5 === 0) || (v >= 1 && v <= 20)));
+  // Tauziehen: 1 bis 20 in 1er-Schritten. Alle anderen Spiele: 5 bis 100 in 5er-Schritten.
+  const gnFix = (gm, v) => (v === 0 ? 0 : gm === 'zieh' ? Math.min(20, Math.max(1, v)) : Math.min(100, Math.max(5, Math.round(v / 5) * 5)));
   const NL_OPTIONS = [2, 3];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
   const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim'];
@@ -66,8 +68,8 @@
     let cdTimer = null;
     let decideTimer = null;
     // Neue Spielarten: Dunkelheit (dk*), Muster (mu*), Geheime Reihenfolge (ge*)
-    const DK_RATE = [0, 1 / 60, 1 / 40, 1 / 25]; // Dunkelheit wächst pro Sekunde: ruhig, mittel, schnell
-    const DK_PUSH = 0.12; // so viel drängt jede Weitergabe sie zurück
+    const DK_RATE = [0, 1 / 30, 1 / 18, 1 / 11]; // Dunkelheit wächst pro Sekunde: ruhig, mittel, schnell
+    const DK_PUSH = 0.035; // so viel drängt jede Weitergabe sie zurück
     let dkStamp = 0;
     let dkTimer = null;
     let muTimer = null;
@@ -106,7 +108,7 @@
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
-      dkv: readNum('lk_dkv', [1, 2, 3], 2), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
+      dkv: readNum('lk_dkv', [1, 2, 3], 2), mt: readNum('lk_mt', [1, 2, 3], 1), sb: readNum('lk_sb', [0, 1], 0), mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -126,7 +128,7 @@
     // ================= Spiellogik (nur Haupt-Tafel) =================
     const aliveIds = () => Object.keys(st.players);
     const isTm = () => st.tm === 1 && st.gm === 'klassik';
-    const needsStart = () => isTm() || LK.isTeamGm(st.gm) || ['dunkel', 'geheim'].includes(st.gm);
+    const needsStart = () => true; // jedes Spiel wartet auf "Spiel starten" und zählt dann 3, 2, 1
     const isNt = (id) => !!(peers[id] && peers[id].nt);
 
     function freeSlot(id) {
@@ -261,9 +263,18 @@
       return 1;
     }
 
+    // Zeit pro Weitergabe (nur auf der Tafel, zum Einstellen der Schwierigkeit pro Gerät)
+    const holdSince = {};
+    let passStats = {};
     function setLight(li, next) {
       rollClock();
       const l = st.lights[li];
+      if (l.h && holdSince[l.h] && st.ph === 'play' && !st.paused && !st.finale) {
+        const d = Date.now() - holdSince[l.h];
+        if (d > 150 && d < 90000) { const q = passStats[l.h] || (passStats[l.h] = { n: 0, sum: 0 }); q.n++; q.sum += d; }
+      }
+      holdSince[l.h] = 0;
+      if (next) holdSince[next] = Date.now();
       l.p = l.h;
       l.h = next;
       l.a = 0;
@@ -386,7 +397,8 @@
     function dkRate() {
       const l = st.lights[0];
       if (st.gm !== 'dunkel' || st.ph !== 'play' || st.finale || finishing || st.paused || !l || !l.h || l.z || isNt(l.h)) return 0;
-      return DK_RATE[st.dkv] || DK_RATE[2];
+      const ramp = 1 + 1.5 * Math.min(1, st.chain / Math.max(1, st.goal)); // wird zum Ende hin schneller
+      return (DK_RATE[st.dkv] || DK_RATE[2]) * ramp;
     }
     const dkLevel = () => Math.min(1, Math.max(0, st.dk + st.dkr * ((Date.now() - dkStamp) / 1000)));
     function dkSet(level, rate) { st.dk = level; st.dkr = rate; dkStamp = Date.now(); }
@@ -431,6 +443,7 @@
       clearTimeout(muTimer);
       mu.ph = 'show';
       mu.cur = null;
+      mu.si = -1;
       mu.i = 0;
       publish();
       muTimer = setTimeout(() => muShow(0), 900);
@@ -438,9 +451,10 @@
     // Spielleitung: Jetzt spielen die Schüler die Reihenfolge nach
     function muGoNow() {
       const mu = st.mu;
-      if (isHost !== true || st.gm !== 'muster' || !mu || mu.ph !== 'shown' || st.finale || st.paused) return;
+      if (isHost !== true || st.gm !== 'muster' || !mu || !(mu.ph === 'shown' || (mu.ph === 'ready' && mu.ag)) || st.finale || st.paused) return;
       mu.ph = 'go';
       mu.i = 0;
+      mu.cur = null;
       publish();
     }
     function muAdvance() {
@@ -454,6 +468,7 @@
       if (st.paused) { muTimer = setTimeout(() => muShow(k), 500); return; }
       if (k >= mu.sq.length) { mu.cur = null; mu.ph = 'shown'; mu.i = 0; publish(); return; }
       mu.cur = mu.sq[k];
+      mu.si = k;
       mu.fk++;
       publish();
       muTimer = setTimeout(() => {
@@ -511,16 +526,35 @@
       if (!st.lights.length) ensureLights();
       if (st.lights[0]) setLight(0, geRoute[0]);
     }
+    // Zum Schluss wird die ganze Reihe noch einmal vorgespielt, Gerät für Gerät, mit Verbindungslinien
+    function geReplay(k) {
+      const ge = st.ge;
+      if (isHost !== true || st.gm !== 'geheim' || !ge || st.finale) return;
+      clearTimeout(geLockT);
+      if (k === 0) { ge.rp = 1; ge.rt = geRoute.slice(); ge.fk = (ge.fk || 0); ge.lk = 1; }
+      if (st.paused) { geLockT = setTimeout(() => geReplay(k), 500); return; }
+      if (k >= geRoute.length) {
+        ge.cur = null;
+        publish();
+        geLockT = setTimeout(() => startFinale(-1), 1200);
+        return;
+      }
+      ge.cur = geRoute[k];
+      ge.ri = k;
+      ge.fk++;
+      publish();
+      geLockT = setTimeout(() => geReplay(k + 1), 900);
+    }
     function geTap(id) {
       const ge = st.ge;
       const l = st.lights[0];
-      if (!ge || !l || !l.h || ge.lk || id === l.h || ge.ex.includes(id) || geRoute.length < 2) return;
+      if (!ge || ge.rp || !l || !l.h || ge.lk || id === l.h || ge.ex.includes(id) || geRoute.length < 2) return;
       if (id === geRoute[ge.i + 1]) {
         ge.i++;
         ge.ex = [];
         st.chain++;
         setLight(0, id);
-        if (ge.i >= geRoute.length - 1) { startFinale(-1); return; }
+        if (ge.i >= geRoute.length - 1) { geReplay(0); return; }
         geLock(1000);
       } else {
         ge.ex.push(id);
@@ -552,6 +586,7 @@
     function resetRound(bump, afterFinale, keepSeries) {
       clearTimeout(finTimer);
       clearTimeout(cdTimer);
+      if (!afterFinale) passStats = {};
       st.lights.forEach((l, i) => clearTimeout(autoTimers[i]));
       finishing = false;
       penUntil[0] = 0;
@@ -623,12 +658,31 @@
       }, 3000);
     }
 
+    // Einstellungsfenster passen immer auf den Bildschirm: zu hoher Inhalt wird verkleinert statt gescrollt
+    function fitDialogs() {
+      document.querySelectorAll('dialog[open]').forEach((d) => {
+        d.style.zoom = '1';
+        d.style.setProperty('--z', '1');
+        const need = d.scrollHeight;
+        const avail = window.innerHeight * 0.94;
+        const z = need > avail ? Math.max(0.4, avail / need) : 1;
+        d.style.setProperty('--z', String(z));
+        d.style.zoom = String(z);
+      });
+    }
+    setInterval(fitDialogs, 300);
+    window.addEventListener('resize', fitDialogs);
+
     function applySettings(patch) {
       Object.assign(st, patch);
+      if (st.gn > 0 && (st.gm === 'zieh' ? st.gn > 20 : st.gn % 5 !== 0)) st.gn = st.gm === 'zieh' ? 0 : gnFix(st.gm, st.gn); // passt nicht zum Spiel: zurück auf Auto bzw. 5er-Wert
       LK.store.set('lk_gm', st.gm);
       LK.store.set('lk_tm', String(st.tm));
       LK.store.set('lk_gn', String(st.gn));
       LK.store.set('lk_dkv', String(st.dkv));
+      LK.store.set('lk_mt', String(st.mt));
+      LK.store.set('lk_sb', String(st.sb));
+      LK.store.set('lk_mf', String(st.mf));
       LK.store.set('lk_nl', String(st.nl));
       LK.store.set('lk_pen', String(st.pen));
       LK.store.set('lk_nr', String(st.nr));
@@ -795,6 +849,7 @@
         nt: p.nt ? 1 : 0,
         w: p.w || 0,
         tt: c.tt !== undefined ? c.tt : (p.tt || 'x'),
+        mt: c.mt !== undefined ? c.mt : '',
       };
     }
 
@@ -803,7 +858,7 @@
       return {
         t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, dkv: st.dkv, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
         mup: st.mu ? st.mu.ph : '', mag: st.mu ? st.mu.ag : 0,
-        ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd,
+        ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd, mt: st.mt, mf: st.mf, sb: st.sb,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
         devices: aliveIds().map((id) => ({
@@ -844,8 +899,9 @@
       sa: (v) => v === 0 || v === 1,
       pn: (v) => v === 0 || v === 1,
       nt: (v) => v === 0 || v === 1,
-      sz: (v) => v === 0.6 || v === 0.75 || v === 1 || v === 1.4,
+      sz: (v) => v === 0.35 || v === 0.75 || v === 1 || v === 1.4,
       w: (v) => LK.WAIT_OPTIONS.includes(v),
+      mt: (v) => v === 1 || v === 2 || v === 3,
       tt: (v) => v === 'a' || v === 'b' || v === 'x',
     };
 
@@ -858,6 +914,9 @@
           if (p.tm === 0 || p.tm === 1) patch.tm = p.tm;
           if (validGn(p.gn)) patch.gn = p.gn;
           if ([1, 2, 3].includes(p.dkv)) patch.dkv = p.dkv;
+          if ([1, 2, 3].includes(p.mt)) patch.mt = p.mt;
+          if ([0, 1].includes(p.mf)) patch.mf = p.mf;
+          if ([0, 1].includes(p.sb)) patch.sb = p.sb;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
           if (p.nr === 0 || p.nr === 1) patch.nr = p.nr;
@@ -870,6 +929,7 @@
         }
         case 'go': if (st.gm === 'muster' && st.ph === 'play') muAdvance(); else startCountdown(); break;
         case 'muagain': muShowNow(); break;
+        case 'mugo': muGoNow(); break;
         case 'restart': resetRound(true, false, true); publish(); break;
         case 'shake': shakeTeams(); break;
         case 'pause': pauseGame(!!cmd.on); break;
@@ -1120,7 +1180,6 @@
       if (changed) layout();
       const count = Object.keys(players).length;
       $('count').textContent = count === 1 ? '1 Gerät' : `${count} Geräte`;
-      if (count > 0 && !view.qrAutoSmall) { view.qrAutoSmall = true; $('qrBox').classList.remove('big'); }
       $('idle').hidden = count > 0;
     }
 
@@ -1178,12 +1237,14 @@
         if (view.mu && pmu) {
           if (view.mu.cur && pmu.fk !== view.mu.fk) flashNode(view.mu.cur, false);
           if (view.mu.tl && pmu.tk !== view.mu.tk) {
+            view.muTlAt = now;
             flashNode(view.mu.tl, false); // jedes Symbol hat seinen festen Ton, beim Zeigen und beim Nachspielen
           }
           if (view.mu.ph === 'next' && pmu.ph !== 'next' && soundOn) LK.audio.arp();
-          if (view.mu.bl && pmu.bad !== view.mu.bad) flashNode(view.mu.bl, true);
+          if (view.mu.bl && pmu.bad !== view.mu.bad) { flashNode(view.mu.bl, true); view.muBlAt = now; }
         }
         if (view.ge && pge && view.ge.bad && pge.bk !== view.ge.bk) flashNode(view.ge.bad, true);
+        if (view.ge && view.ge.rp && view.ge.cur && (!pge || pge.fk !== view.ge.fk)) flashNode(view.ge.cur, false);
       }
       view.stars = s.stars || [];
       if (s.sc > view.sc && !first) {
@@ -1218,10 +1279,13 @@
       const muPh = (view.gm === 'muster' && view.ph === 'play' && !view.finale && view.mu) ? view.mu.ph : '';
       const muBtn = muPh === 'ready' || muPh === 'shown';
       $('goBtn').hidden = !(isHost === true && (view.ph === 'ready' || bildFin || muBtn) && Object.keys(st.players).length > 0);
+      $('muHelp').hidden = !(isHost === true && view.gm === 'muster' && view.ph === 'play' && !view.finale && view.mu && view.mu.sq.length > 0);
+      $('muHelp').textContent = `Hilfslinien: ${view.muLines ? 'an' : 'aus'}`;
+      $('muHelp').setAttribute('aria-pressed', String(!!view.muLines));
       $('saveBtn').hidden = !(view.gm === 'bild' && view.chain > 0);
-      $('shakeBtn').hidden = !(isHost === true && ((view.ph === 'ready' && LK.isTeamGm(view.gm)) || muPh === 'shown') && Object.keys(st.players).length > 0);
-      $('shakeBtn').textContent = muPh === 'shown' ? 'Noch einmal zeigen' : '🎲 Teams neu würfeln';
-      $('goBtn').textContent = muPh === 'ready' ? (view.mu.ag ? 'Noch einmal zeigen ▶' : 'Reihenfolge zeigen ▶') : (muPh === 'shown' ? 'Jetzt nachspielen ▶' : ((view.round > 1 || bildFin) ? 'Neue Runde ▶' : 'Los ▶'));
+      $('shakeBtn').hidden = !(isHost === true && ((view.ph === 'ready' && LK.isTeamGm(view.gm)) || muPh === 'shown' || (muPh === 'ready' && view.mu.ag)) && Object.keys(st.players).length > 0);
+      $('shakeBtn').textContent = muPh === 'shown' ? 'Noch einmal zeigen' : (muPh === 'ready' ? 'Direkt noch einmal versuchen ▶' : '🎲 Teams neu würfeln');
+      $('goBtn').textContent = muPh === 'ready' ? (view.mu.ag ? 'Reihenfolge noch einmal zeigen ▶' : 'Reihenfolge zeigen ▶') : (muPh === 'shown' ? 'Jetzt nachspielen ▶' : ((view.round > 1 || bildFin) ? 'Neue Runde starten ▶' : 'Spiel starten ▶'));
     }
 
     const fmtTime = (ms) => {
@@ -1293,10 +1357,13 @@
     }
 
     // Schatz-Licht: goldene Wellen und zwei helle Töne, wenn ein Stern eingesammelt wurde
+    let starFly = [];
+    let basketPop = 0;
     function starBurst(id) {
       const n = nodes[id];
       if (!n) return;
       const now = performance.now();
+      starFly.push({ x: n.x, y: n.y, t0: now, ph: Math.random() * 2 - 1 });
       ripples.push({ x: n.x, y: n.y, t0: now, color: '#fde047' });
       ripples.push({ x: n.x, y: n.y, t0: now + 140, color: '#fde047' });
       if (soundOn) { LK.audio.note(n.slot, 0.4, 1.4, 0, 1); LK.audio.note(n.slot, 0.25, 1.6, 0.12, 2); }
@@ -1457,6 +1524,205 @@
       });
     }
 
+    // Schatz-Licht: Der Sammelkorb in der Mitte. Die Sterne fliegen von den Geräten hinein, der Haufen wächst.
+    const frac = (x) => x - Math.floor(x);
+    function drawBasket(cx, cy, hr, now) {
+      ctx.globalCompositeOperation = 'source-over';
+      const bx = cx;
+      const by = cy + hr * 0.2;
+      const mw = hr * 1.7; const bwid = hr * 1.15; const h = hr * 0.95;
+      const top = by - h / 2;
+      const pop = basketPop ? Math.max(0, 1 - (now - basketPop) / 350) : 0;
+      ctx.save();
+      ctx.translate(bx, by); ctx.scale(1 + 0.07 * pop, 1 - 0.05 * pop); ctx.translate(-bx, -by);
+      // Innenraum
+      ctx.fillStyle = 'rgba(40,30,10,0.9)';
+      ctx.beginPath(); ctx.ellipse(bx, top, mw / 2, h * 0.16, 0, 0, TAU); ctx.fill();
+      // Sternenhaufen (Sterne, die noch fliegen, zählen noch nicht)
+      const air = starFly.length;
+      const cnt = Math.max(0, Math.min(view.sc, 40) - air);
+      for (let i = 0; i < cnt; i++) {
+        const t = i / 40;
+        const x = bx + (frac(Math.sin((i + 1) * 12.9898) * 43758.5453) - 0.5) * mw * 0.74 * (1 - 0.45 * t);
+        const y = top + h * 0.05 - t * h * 0.55 + (frac(Math.sin((i + 7) * 78.233) * 12345.678) - 0.5) * h * 0.12;
+        ctx.fillStyle = i % 3 === 0 ? 'rgba(255,240,150,1)' : 'rgba(253,224,71,0.95)';
+        starPath(x, y, hr * 0.17);
+        ctx.fill();
+      }
+      // Korbkörper
+      ctx.fillStyle = '#a16a35';
+      ctx.beginPath();
+      ctx.moveTo(bx - mw / 2, top); ctx.lineTo(bx + mw / 2, top);
+      ctx.lineTo(bx + bwid / 2, by + h / 2); ctx.lineTo(bx - bwid / 2, by + h / 2); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(70,40,15,0.55)'; ctx.lineWidth = Math.max(2, hr * 0.03);
+      for (let k = 1; k < 4; k++) {
+        const yy = top + (h * k) / 4; const half = (mw / 2) - ((mw - bwid) / 2) * (k / 4);
+        ctx.beginPath(); ctx.moveTo(bx - half, yy); ctx.lineTo(bx + half, yy); ctx.stroke();
+      }
+      for (let k = -2; k <= 2; k++) {
+        ctx.beginPath(); ctx.moveTo(bx + (k * mw) / 6, top); ctx.lineTo(bx + (k * bwid) / 6, by + h / 2); ctx.stroke();
+      }
+      ctx.strokeStyle = '#d4a05a'; ctx.lineWidth = Math.max(4, hr * 0.07);
+      ctx.beginPath(); ctx.ellipse(bx, top, mw / 2, h * 0.16, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+      // Fliegende Sterne
+      starFly = starFly.filter((f) => {
+        const k = (now - f.t0) / 800;
+        if (k >= 1) { basketPop = now; return false; }
+        const e = k * k * (3 - 2 * k);
+        const tx = bx + f.ph * mw * 0.12; const ty = top;
+        const mx = (f.x + tx) / 2 + f.ph * hr * 0.8; const my = Math.min(f.y, ty) - hr * 0.9;
+        const u = 1 - e;
+        const x = u * u * f.x + 2 * u * e * mx + e * e * tx;
+        const y = u * u * f.y + 2 * u * e * my + e * e * ty;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, hr * 0.5);
+        g.addColorStop(0, 'rgba(255,240,150,0.7)'); g.addColorStop(1, 'rgba(253,224,71,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, hr * 0.5, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(253,224,71,1)';
+        starPath(x, y, hr * (0.24 - 0.07 * e));
+        ctx.fill();
+        return true;
+      });
+      ctx.fillStyle = 'rgba(253,224,71,0.95)';
+      ctx.font = `700 ${Math.round(hr * 0.34)}px ${SANS}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`★ ${view.sc} / ${view.goal}`, cx, by + h / 2 + hr * 0.4);
+    }
+
+    function drawTimes() {
+      ctx.globalCompositeOperation = 'source-over';
+      const r = baseR();
+      ctx.font = `600 ${Math.round(Math.max(12, r * 0.5))}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      Object.keys(nodes).forEach((id) => {
+        const n = nodes[id];
+        const t = n.dying ? '' : fmtT(id);
+        if (!t) return;
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(6,7,13,0.85)'; ctx.strokeText(t, n.x, n.y + r * 1.35);
+        ctx.fillStyle = 'rgba(220,225,255,0.9)'; ctx.fillText(t, n.x, n.y + r * 1.35);
+      });
+    }
+    // Pfeile und Nummern entlang einer Reihenfolge (Geheime Reihenfolge am Ende)
+    function drawRoute(seq, upto) {
+      ctx.globalCompositeOperation = 'source-over';
+      const r0 = baseR() * 1.15;
+      for (let k = 0; k <= upto && k < seq.length; k++) {
+        const b = nodes[seq[k]];
+        if (!b) continue;
+        const a = k > 0 ? nodes[seq[k - 1]] : null;
+        if (a && a !== b) {
+          const dx = b.x - a.x; const dy = b.y - a.y; const d = Math.hypot(dx, dy) || 1;
+          const ux = dx / d; const uy = dy / d;
+          const x2 = b.x - ux * r0; const y2 = b.y - uy * r0;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,225,160,0.8)'; ctx.fillStyle = ctx.strokeStyle;
+          ctx.lineWidth = Math.max(3, r0 * 0.12);
+          ctx.beginPath(); ctx.moveTo(a.x + ux * r0, a.y + uy * r0); ctx.lineTo(x2, y2); ctx.stroke();
+          const hs = r0 * 0.38;
+          ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - ux * hs - uy * hs * 0.55, y2 - uy * hs + ux * hs * 0.55); ctx.lineTo(x2 - ux * hs + uy * hs * 0.55, y2 - uy * hs - ux * hs * 0.55); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.font = `800 ${Math.round(r0 * 0.7)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(6,7,13,0.85)';
+        ctx.strokeText(String(k + 1), b.x - r0 * 0.95, b.y - r0 * 0.95);
+        ctx.fillStyle = 'rgba(255,240,200,0.95)'; ctx.fillText(String(k + 1), b.x - r0 * 0.95, b.y - r0 * 0.95);
+        ctx.restore();
+      }
+    }
+
+    // Muster: Auf der Tafel sieht man, welches Gerät getippt hat (grün = richtig) und wer falsch war (rot), samt dem richtigen
+    function drawMuMarks(now) {
+      const mu = view.mu;
+      ctx.globalCompositeOperation = 'source-over';
+      const ring = (id, col, a, dash, sym) => {
+        const n = nodes[id];
+        if (!n || a <= 0) return;
+        const r = baseR() * 1.55;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = col; ctx.fillStyle = col;
+        ctx.lineWidth = Math.max(4, r * 0.1);
+        ctx.setLineDash(dash ? [r * 0.25, r * 0.2] : []);
+        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = `800 ${Math.round(r * 0.8)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(sym, n.x + r * 0.95, n.y - r * 0.95);
+        ctx.restore();
+      };
+      // Hilfslinien: Pfeile zwischen den Geräten in der richtigen Reihenfolge (nur wenn die Spielleitung sie einblendet)
+      if (view.muLines && ['show', 'shown', 'go', 'again'].includes(mu.ph)) {
+        const upto = mu.ph === 'show' ? (mu.si === undefined ? -1 : mu.si) : mu.sq.length - 1;
+        const r0 = baseR() * 1.15;
+        for (let k = 0; k <= upto; k++) {
+          const b = nodes[mu.sq[k]];
+          if (!b) continue;
+          const a = k > 0 ? nodes[mu.sq[k - 1]] : null;
+          const done = mu.ph === 'go' && k <= mu.i - 1;
+          const col = done ? '110,231,183' : '235,238,255';
+          if (a && a !== b) {
+            const dx = b.x - a.x; const dy = b.y - a.y; const d = Math.hypot(dx, dy) || 1;
+            const ux = dx / d; const uy = dy / d;
+            const x1 = a.x + ux * r0; const y1 = a.y + uy * r0; const x2 = b.x - ux * r0; const y2 = b.y - uy * r0;
+            ctx.save();
+            ctx.strokeStyle = `rgba(${col},${done ? 0.85 : 0.6})`; ctx.fillStyle = ctx.strokeStyle;
+            ctx.lineWidth = Math.max(3, r0 * 0.12);
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            const hs = r0 * 0.38;
+            ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - ux * hs - uy * hs * 0.55, y2 - uy * hs + ux * hs * 0.55); ctx.lineTo(x2 - ux * hs + uy * hs * 0.55, y2 - uy * hs - ux * hs * 0.55); ctx.closePath(); ctx.fill();
+            ctx.restore();
+          }
+          ctx.save();
+          ctx.font = `800 ${Math.round(r0 * 0.7)}px system-ui, sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(6,7,13,0.85)';
+          const tx = b.x - r0 * 0.95; const ty = b.y - r0 * 0.95;
+          ctx.strokeText(String(k + 1), tx, ty);
+          ctx.fillStyle = `rgba(${col},0.95)`; ctx.fillText(String(k + 1), tx, ty);
+          ctx.restore();
+        }
+      }
+      if (mu.tl && view.muTlAt && mu.ph === 'go') ring(mu.tl, '#6ee7b7', Math.max(0, 1 - (now - view.muTlAt) / 1400), false, '✓');
+      if (mu.bl && (mu.ph === 'again' || (mu.ph === 'ready' && mu.ag))) {
+        const pulse = 0.75 + 0.25 * Math.sin(now / 180);
+        ring(mu.bl, '#fb7185', pulse, false, '✕');
+        if (mu.sq[mu.i]) ring(mu.sq[mu.i], '#6ee7b7', 0.9, true, '');
+      }
+    }
+
+    // Zwei Balken unten: wie weit die Gruppe ist (Licht) und wie nah der Schatten (Dunkelheit)
+    function drawDarkBars(now) {
+      if (view.ph !== 'play') return;
+      ctx.globalCompositeOperation = 'source-over';
+      const bw = Math.min(W * 0.72, 760);
+      const bh = Math.max(14, Math.min(26, H * 0.03));
+      const x = (W - bw) / 2;
+      const lvl = Math.min(1, view.dkShow);
+      const prog = Math.min(1, (view.chain || 0) / Math.max(1, view.goal || 1));
+      const danger = lvl > 0.75;
+      const blink = danger ? 0.65 + 0.35 * Math.sin(now / (lvl > 0.9 ? 90 : 180)) : 1;
+      const bar = (y, f, col, label, right) => {
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath(); ctx.roundRect(x, y, bw, bh, bh / 2); ctx.fill();
+        if (f > 0.005) {
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.roundRect(x, y, Math.max(bh, bw * f), bh, bh / 2); ctx.fill();
+        }
+        ctx.font = `600 ${Math.round(bh * 0.8)}px system-ui, sans-serif`;
+        ctx.textBaseline = 'bottom';
+        ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillText(label, x + 4, y - 3);
+        ctx.textAlign = 'right';
+        ctx.fillText(right, x + bw - 4, y - 3);
+      };
+      const y2 = H - bh - 16;
+      const y1 = y2 - bh - bh * 1.9;
+      bar(y1, prog, 'rgba(255,214,120,0.95)', 'Licht der Gruppe', `${view.chain || 0} von ${view.goal || 0}`);
+      bar(y2, lvl, danger ? `rgba(255,90,90,${blink})` : 'rgba(150,130,255,0.9)', danger ? 'Dunkelheit: gleich ist es zu spät!' : 'Dunkelheit', `${Math.round(lvl * 100)} %`);
+    }
+
     function draw(now) {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
@@ -1606,7 +1872,10 @@
         }
       });
 
-      if (view.gm === 'dunkel') drawDarkFront(now);
+      if (view.gm === 'muster' && view.mu) drawMuMarks(now);
+      if (view.zt && isHost === true) drawTimes();
+      if (view.gm === 'geheim' && view.ge && view.ge.rp && view.ge.rt) drawRoute(view.ge.rt, view.ge.ri === undefined ? -1 : view.ge.ri);
+      if (view.gm === 'dunkel') { drawDarkFront(now); if (!fin) drawDarkBars(now); }
 
       // Schweif und Lichtkugeln
       trail = trail.filter((t) => now - t.t < 650);
@@ -1808,9 +2077,7 @@
           }
         }
       } else if (gm === 'schatz') {
-        ctx.fillStyle = 'rgba(253,224,71,0.9)';
-        ctx.font = `600 ${Math.round(hr * 0.34)}px ${SANS}`;
-        ctx.fillText(`★ ${view.sc} / ${view.goal}`, cx, cy);
+        drawBasket(cx, cy, hr, now);
       } else if (gm === 'basal') {
         if (view.chain > 0) {
           ctx.fillStyle = 'rgba(200,205,240,0.45)';
@@ -1843,7 +2110,7 @@
       } else if (gm === 'geheim' && view.ge) {
         ctx.fillStyle = 'rgba(235,238,255,0.9)';
         ctx.font = `600 ${Math.round(hr * 0.4)}px ${SANS}`;
-        ctx.fillText(view.ge.lk ? 'Moment …' : 'Wer ist als Nächstes dran?', cx, cy - hr * 0.15);
+        ctx.fillText(view.ge.rp ? 'Die ganze Reihe noch einmal' : (view.ge.lk ? 'Moment …' : 'Wer ist als Nächstes dran?'), cx, cy - hr * 0.15);
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.26)}px ${SANS}`;
         ctx.fillText(`Schritt ${Math.min(view.ge.i + 1, Math.max(1, view.ge.n - 1))} von ${Math.max(1, view.ge.n - 1)}`, cx, cy + hr * 0.4);
@@ -1973,9 +2240,13 @@
       mark('sj', st.sj);
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = !el.dataset.for.split(' ').includes(st.gm); });
       mark('dkv', st.dkv);
+      mark('mt', st.mt);
+      mark('mf', st.mf);
+      mark('sb', st.sb);
       $('gnVal').textContent = st.gn ? String(st.gn) : `Auto (${st.goal})`;
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
+      document.querySelectorAll('[data-gnstep]').forEach((b) => { const k = st.gm === 'zieh' ? 1 : 5; const up = parseInt(b.dataset.gnstep, 10) > 0; b.textContent = (up ? '+' : '−') + k; b.setAttribute('aria-label', `${k} ${up ? 'mehr' : 'weniger'}`); });
       $('gnLabel').hidden = st.gm === 'basal';
       $('gnLabel').nextElementSibling.hidden = st.gm === 'basal';
       $('gameTitle').textContent = TITLES[st.gm] || '';
@@ -1988,6 +2259,8 @@
       $('restartBtn').hidden = isHost !== true;
       $('teacherQrBtn').hidden = isHost !== true;
       $('modeBox').hidden = isHost !== true;
+      $('nrBox').hidden = isHost !== true;
+      $('curGame').hidden = isHost !== true;
       markSettings();
       showViewGames();
       $('dlg').showModal();
@@ -1995,6 +2268,10 @@
     });
     $('dlgClose').addEventListener('click', () => $('dlg').close());
     $('copyBtn').addEventListener('click', copyLink);
+    view.zt = LK.store.get('lk_zt', '0') === '1';
+    const markZt = () => { $('ztBtn').textContent = `Zeit pro Weitergabe: ${view.zt ? 'an' : 'aus'}`; };
+    markZt();
+    $('ztBtn').addEventListener('click', () => { view.zt = !view.zt; LK.store.set('lk_zt', view.zt ? '1' : '0'); markZt(); });
     $('sndBtn').addEventListener('click', () => {
       soundOn = !soundOn;
       LK.store.set('lk_board_snd', soundOn ? '1' : '0');
@@ -2061,6 +2338,7 @@
     function showView(v) {
       $('viewGames').hidden = v !== 'games';
       $('viewGame').hidden = v !== 'game';
+      $('viewBasics').hidden = v !== 'basics';
       try { $('dlg').scrollTop = 0; } catch (e) { /* egal */ }
     }
     document.querySelectorAll('.gcard[data-gm]').forEach((c) => c.addEventListener('click', () => {
@@ -2071,6 +2349,8 @@
     }));
     $('curGame').addEventListener('click', () => { markSettings(); showView('game'); });
     $('backToGames').addEventListener('click', () => showView('games'));
+    $('basicsBtn').addEventListener('click', () => showView('basics'));
+    $('backFromBasics').addEventListener('click', () => showView('games'));
     onSetting('tm', 'tm', (v) => parseInt(v, 10));
     onSetting('gn', 'gn', (v) => parseInt(v, 10));
     onSetting('nl', 'nl', (v) => parseInt(v, 10));
@@ -2079,11 +2359,14 @@
     onSetting('sp', 'sp', (v) => parseInt(v, 10));
     onSetting('sj', 'sj', (v) => parseInt(v, 10));
     onSetting('dkv', 'dkv', (v) => parseInt(v, 10));
+    onSetting('mt', 'mt', (v) => parseInt(v, 10));
+    onSetting('mf', 'mf', (v) => parseInt(v, 10));
+    onSetting('sb', 'sb', (v) => parseInt(v, 10));
     // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
     document.querySelectorAll('[data-gnstep]').forEach((b) => b.addEventListener('click', () => {
       if (isHost !== true) return;
       const base = st.gn || computeGoal();
-      applySettings({ gn: Math.min(100, Math.max(5, Math.round((base + parseInt(b.dataset.gnstep, 10)) / 5) * 5)) });
+      applySettings({ gn: gnFix(st.gm, base + (parseInt(b.dataset.gnstep, 10) > 0 ? 1 : -1) * (st.gm === 'zieh' ? 1 : 5)) });
       markSettings();
     }));
     $('gnAuto').addEventListener('click', () => { if (isHost === true) { applySettings({ gn: 0 }); markSettings(); } });
@@ -2099,11 +2382,18 @@
         seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
       });
     }
+    const fmtT = (id) => { const q = passStats[id]; return q && q.n ? `Ø ${(q.sum / q.n / 1000).toFixed(1).replace('.', ',')} s (${q.n}×)` : ''; };
+    function markDevTime() {
+      const t = devId !== null && view.zt ? fmtT(devId) : '';
+      $('devTime').hidden = !(view.zt && devId !== null);
+      $('devTime').textContent = t ? `Zeit pro Weitergabe: ${t}` : 'Zeit pro Weitergabe: noch keine Messung';
+    }
     function openDev(id) {
       devId = id;
       const n = nodes[id];
       $('devTitle').innerHTML = `<span class="devshape" style="color:${n.col}">${LK.shapeSvg(n.slot)}</span> Gerät`;
       markDev();
+      markDevTime();
       $('devDlg').showModal();
       noKeyboard();
     }
@@ -2152,7 +2442,9 @@
       startCountdown();
     };
     $('goBtn').addEventListener('click', goOrNext);
-    $('shakeBtn').addEventListener('click', () => { if (st.gm === 'muster') muShowNow(); else shakeTeams(); });
+    view.muLines = LK.store.get('lk_mulines', '0') === '1';
+    $('muHelp').addEventListener('click', () => { view.muLines = !view.muLines; LK.store.set('lk_mulines', view.muLines ? '1' : '0'); refreshUi(); });
+    $('shakeBtn').addEventListener('click', () => { if (st.gm === 'muster') { if (st.mu && st.mu.ph === 'ready') muGoNow(); else muShowNow(); } else shakeTeams(); });
     // Lichtbild als Bild speichern
     $('saveBtn').addEventListener('click', () => {
       try {
