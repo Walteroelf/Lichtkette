@@ -138,7 +138,8 @@
     }
 
     // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
-    const useRandom = () => eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
+    const trOn = () => !!(st && st.gm === 'extrem' && mode === 'touch');
+    const useRandom = () => trOn() || eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
     const hintText = () => {
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
@@ -374,10 +375,179 @@
       if (!on && cdAt) { cdAt = 0; clearInterval(cdTick); }
       $('cdOv').hidden = !on || performance.now() - cdAt > (st.cd || 3000) + 600;
     }
+    // ---------- Lichtkette extrem: erst eine Spur nachziehen, dann das Symbol weitergeben ----------
+    // Stufen 1 bis 6: mehr Kurven, schmalere Spur, ab Stufe 5 zwei, ab 6 drei Finger. Sie passt sich jedem Gerät an.
+    const X_BEND = [1, 2, 3, 3, 4, 5];
+    const X_WIDTH = [0.17, 0.15, 0.13, 0.115, 0.11, 0.1];
+    const X_FING = [1, 1, 1, 1, 2, 3];
+    const X_TIME = [3, 3.6, 4.4, 5, 6.5, 8]; // so viele Sekunden gelten als "genau richtig"
+    let tr = null;
+    let xLvl = 0;
+    let xStreak = 0;
+    const xLevel = () => { if (!xLvl) xLvl = (st && st.xl) || 2; return Math.max(1, Math.min(6, xLvl)); };
+    const trCv = () => $('traceCv');
+    function traceBegin() {
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const vm = Math.min(W, H);
+      const lvl = xLevel();
+      const n = X_FING[lvl - 1];
+      const w = vm * X_WIDTH[lvl - 1];
+      const mg = vm * 0.1 + w * 0.5;
+      const top = mg;
+      const bot = H * 0.8 - mg;
+      const o = Math.floor(Math.random() * 4);
+      let sx; let sy; let ex; let ey;
+      const lo = top + (bot - top) * 0.1;
+      const hi = bot - (bot - top) * 0.1;
+      if (o < 2) { // waagerecht, von unten nach oben oder umgekehrt
+        const up = Math.random() < 0.5;
+        sx = o === 0 ? mg : W - mg; ex = o === 0 ? W - mg : mg;
+        sy = up ? hi : lo; ey = up ? lo : hi;
+      } else {
+        const left = Math.random() < 0.5;
+        sy = o === 2 ? hi : lo; ey = o === 2 ? lo : hi;
+        sx = left ? mg : W - mg; ex = left ? W - mg : mg;
+      }
+      const dx = ex - sx; const dy = ey - sy;
+      const len = Math.hypot(dx, dy);
+      const ux = dx / len; const uy = dy / len;
+      const px = -uy; const py = ux;
+      const amp = Math.min(len * 0.2, vm * 0.22) * (0.55 + 0.09 * lvl);
+      const bends = X_BEND[lvl - 1];
+      const gap = w * 1.9;
+      const paths = [];
+      for (let f = 0; f < n; f++) {
+        const off = (f - (n - 1) / 2) * gap;
+        const pts = [];
+        for (let i = 0; i <= 72; i++) {
+          const t = i / 72;
+          const a = amp * Math.sin(bends * Math.PI * t);
+          pts.push([sx + dx * t + px * (a + off), sy + dy * t + py * (a + off)]);
+        }
+        paths.push({ pts, prog: 0, done: false });
+      }
+      tr = { paths, w, t0: performance.now(), lvl, resets: 0, done: false, fingers: {} };
+      const hold = $('hold');
+      const ex0 = paths.reduce((a, p) => a + p.pts[72][0], 0) / n;
+      const ey0 = paths.reduce((a, p) => a + p.pts[72][1], 0) / n;
+      hold.style.left = `${ex0}px`;
+      hold.style.top = `${ey0}px`;
+      scrPlay.style.setProperty('--gx', `${(ex0 / W) * 100}%`);
+      scrPlay.style.setProperty('--gy', `${(ey0 / H) * 100}%`);
+      const cv = trCv();
+      cv.width = W * 2; cv.height = H * 2;
+      cv.hidden = false;
+      requestAnimationFrame(traceDraw);
+    }
+    function traceEnd() {
+      tr = null;
+      const cv = trCv();
+      cv.hidden = true;
+    }
+    function traceDraw(now) {
+      if (!tr) return;
+      const cv = trCv();
+      const g = cv.getContext('2d');
+      g.setTransform(2, 0, 0, 2, 0, 0);
+      g.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      const col = getComputedStyle(scrPlay).getPropertyValue('--c').trim() || '#7dd3fc';
+      tr.paths.forEach((p) => {
+        const pts = p.pts;
+        g.lineCap = 'round'; g.lineJoin = 'round';
+        const stroke = (from, to, width, style, blur) => {
+          g.beginPath();
+          for (let i = from; i <= to; i++) { if (i === from) g.moveTo(pts[i][0], pts[i][1]); else g.lineTo(pts[i][0], pts[i][1]); }
+          g.lineWidth = width; g.strokeStyle = style; g.shadowColor = col; g.shadowBlur = blur; g.stroke();
+          g.shadowBlur = 0;
+        };
+        stroke(0, pts.length - 1, tr.w, 'rgba(255,255,255,0.10)', 0);
+        stroke(0, pts.length - 1, 3, 'rgba(255,255,255,0.35)', 0);
+        if (p.prog > 0) stroke(0, p.prog, tr.w * 0.55, col, 24);
+        // Start (pulsiert) und Ziel
+        if (!p.done) {
+          const k = 0.5 + 0.5 * Math.sin(now / 260);
+          g.beginPath(); g.arc(pts[0][0], pts[0][1], tr.w * (0.42 + 0.1 * k), 0, Math.PI * 2);
+          g.fillStyle = col; g.globalAlpha = 0.9; g.fill(); g.globalAlpha = 1;
+        }
+      });
+      Object.values(tr.fingers).forEach((f) => {
+        g.beginPath(); g.arc(f.x, f.y, tr.w * 0.3, 0, Math.PI * 2);
+        g.fillStyle = '#fff'; g.shadowColor = col; g.shadowBlur = 20; g.fill(); g.shadowBlur = 0;
+      });
+      requestAnimationFrame(traceDraw);
+    }
+    function traceFinished() {
+      if (!tr || tr.done) return;
+      tr.done = true;
+      const secs = (performance.now() - tr.t0) / 1000;
+      const T = X_TIME[tr.lvl - 1];
+      if (st && st.xa === 1) {
+        const ratio = secs / T;
+        if (ratio < 0.65 && tr.resets === 0) { xStreak++; if (xStreak >= 2 && xLvl < 6) { xLvl = Math.min(6, xLevel() + 1); xStreak = 0; } }
+        else if (ratio > 1.7 || tr.resets >= 3) { xLvl = Math.max(1, xLevel() - 1); xStreak = 0; }
+        else xStreak = 0;
+      }
+      if (sound && slot >= 0) LK.audio.note(slot, 0.35, 1.0, 0, 1);
+      if (navigator.vibrate) { try { navigator.vibrate(25); } catch (e) { /* egal */ } }
+      lockUntil = 0;
+      sendHb();
+      render();
+    }
+    function traceMove(e) {
+      const f = tr && tr.fingers[e.pointerId];
+      if (!f) return;
+      f.x = e.clientX; f.y = e.clientY;
+      const p = tr.paths[f.i];
+      if (p.done) return;
+      const lo = Math.max(0, p.prog - 2);
+      const hi = Math.min(p.pts.length - 1, p.prog + 22);
+      let best = -1; let bd = Infinity;
+      for (let i = lo; i <= hi; i++) {
+        const d = Math.hypot(p.pts[i][0] - e.clientX, p.pts[i][1] - e.clientY);
+        if (d < bd) { bd = d; best = i; }
+      }
+      if (bd <= tr.w * 0.62) {
+        if (best > p.prog) p.prog = best;
+        if (p.prog >= p.pts.length - 3) {
+          p.done = true;
+          if (tr.paths.every((q) => q.done)) traceFinished();
+        }
+      } else if (bd > tr.w * 1.1 && p.prog > 0) {
+        p.prog = 0;
+        tr.resets++;
+        if (navigator.vibrate) { try { navigator.vibrate(10); } catch (err) { /* egal */ } }
+      }
+    }
+    trCv().addEventListener('pointerdown', (e) => {
+      if (!tr || tr.done || st.paused) return;
+      e.preventDefault();
+      let bi = -1; let bd = Infinity;
+      tr.paths.forEach((p, i) => {
+        if (p.done || Object.values(tr.fingers).some((f) => f.i === i)) return;
+        const d = Math.hypot(p.pts[0][0] - e.clientX, p.pts[0][1] - e.clientY);
+        if (d < bd) { bd = d; bi = i; }
+      });
+      if (bi < 0 || bd > tr.w * 1.3) return;
+      tr.fingers[e.pointerId] = { i: bi, x: e.clientX, y: e.clientY };
+      try { trCv().setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    });
+    trCv().addEventListener('pointermove', traceMove);
+    const traceUp = (e) => {
+      if (!tr) return;
+      const f = tr.fingers[e.pointerId];
+      if (!f) return;
+      const p = tr.paths[f.i];
+      if (!p.done) { if (p.prog > 0) tr.resets++; p.prog = 0; }
+      delete tr.fingers[e.pointerId];
+    };
+    trCv().addEventListener('pointerup', traceUp);
+    trCv().addEventListener('pointercancel', traceUp);
+
     // Staffel/Tauziehen, Schwierigkeit: mehrere Treffer pro Weitergabe (nur Touch). Das Symbol springt nach jedem Treffer.
     let mtHit = 0;
     // Die Einstellung des Spiels gilt für Touch. Taster und Blick-Maus machen nur mit, wenn die Tafel es für dieses Gerät eingestellt hat.
-    const mtNeed = () => { if (!st || !LK.isTeamGm(st.gm)) return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
+    const mtNeed = () => { if (!st || !LK.isTeamGm(st.gm) || st.gm === 'extrem') return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
     function placeTarget() {
       const hold = $('hold');
       const w = window.innerWidth;
@@ -429,7 +599,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
+      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, xl: trOn() && slot >= 0 ? xLevel() : 0, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -495,12 +665,14 @@
         if (useRandom()) {
           placeTarget();
           hold.innerHTML = slot >= 0 ? LK.shapeSvg(slot) : '';
+          if (trOn()) traceBegin();
         }
         hold.hidden = false;
         try { hold.focus({ preventScroll: true }); } catch (e) { /* ältere Browser */ }
         setTimeout(render, lockMs() + 30);
       } else if (!iHold && holding) {
         holding = false;
+        traceEnd();
         lightTapped = false;
         starCount = 0;
         clearTimeout(starTimer);
@@ -536,7 +708,7 @@
       scrPlay.classList.toggle('mine', tapGm); // Muster/Geheim: eigenes Symbol bleibt gut sichtbar in der Mitte
       muStrip(tapGm);
       scrPlay.classList.toggle('fin', isFin);
-      $('hold').classList.toggle('locked', (iHold && (performance.now() < lockUntil || paused)) || (tg.target && tg.locked));
+      $('hold').classList.toggle('locked', (iHold && (performance.now() < lockUntil || paused || (tr && !tr.done))) || (tg.target && tg.locked));
 
       const online = net.connected;
       $('conn').className = `dot ${online ? (fresh ? 'ok' : 'warn') : 'bad'}`;
@@ -551,6 +723,8 @@
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
       else if (tg.msg) msg = tg.msg;
+      else if (iHold && tr && !tr.done) msg = tr.paths.length > 1 ? `Zieh die ${tr.paths.length} Spuren gleichzeitig` : 'Zieh den Punkt die Spur entlang';
+      else if (iHold && tr && tr.done) msg = 'Geschafft! Jetzt weitergeben';
       else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
@@ -563,6 +737,7 @@
       const bits = [];
       if (fresh && LK.isTeamGm(st.gm) && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
       if (iHold && st.gm === 'doppel') bits.push(`Licht ${light.k + 1}`);
+      if (fresh && trOn() && slot >= 0) bits.push(`Stufe ${xLevel()}`);
       if (iHold && mtNeed() > 1) bits.push(`Tipp ${Math.min(mtHit + 1, mtNeed())} von ${mtNeed()}`);
       if (fresh && st.gm === 'schatz' && st.stars && st.stars.includes(ID)) bits.push('★ Hier liegt ein Stern');
       $('tag').textContent = bits.join(' · ');
@@ -640,6 +815,7 @@
         setTimeout(render, 550);
         return;
       }
+      if (holding && tr && !tr.done) { flashMsg = 'Erst die Spur nachziehen'; flashUntil = performance.now() + 900; render(); setTimeout(render, 950); return; }
       if (!holding || performance.now() < lockUntil || !st) return;
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
@@ -917,7 +1093,7 @@
         setTimeout(render, 1150);
         return;
       }
-      if (!active || !eMiss() || mode === 'taster' || mode === 'blick' || !st) return; // Augensteuerung: nie Fehltipps oder Strafe
+      if (!active || !eMiss() || mode === 'taster' || mode === 'blick' || !st || tr) return; // Augensteuerung: nie Fehltipps oder Strafe
       if (!LK.isTeamGm(st.gm) || st.ph !== 'play' || st.finale || st.paused || !st.pen) return;
       if (e.target.closest('button')) return; // Treffer oder Bedienknopf
       const now = performance.now();

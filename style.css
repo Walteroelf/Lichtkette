@@ -572,3 +572,8 @@ dialog { max-height: calc(94dvh / var(--z, 1)); }
 #viewGames .gcard { padding: 14px 14px; }
 .topbtns { display: flex; gap: 8px; flex-wrap: wrap; }
 .topbtns .btn { flex: 1 1 auto; }
+
+/* Lichtkette extrem: Spur nachziehen */
+#traceCv { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
+#traceCv[hidden] { display: none; }
+.rnd #hold { z-index: 3; }

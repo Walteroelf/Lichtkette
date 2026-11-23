@@ -20,8 +20,8 @@
   const gnFix = (gm, v) => (v === 0 ? 0 : gm === 'zieh' ? Math.min(20, Math.max(1, v)) : Math.min(100, Math.max(5, Math.round(v / 5) * 5)));
   const NL_OPTIONS = [2, 3];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
-  const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim'];
-  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim', 'extrem'];
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
     basal: 'Ganz einfach: Das Licht wandert ohne Zeitdruck und ohne Ziel von Gerät zu Gerät. Jede Weitergabe klingt. Große feste Tippfläche.',
     klassik: 'Ein Licht wandert zufällig von Gerät zu Gerät. Wahlweise als Zeitspiel mit Bestzeit.',
@@ -33,6 +33,7 @@
     muster: 'Die Tafel zeigt eine Reihenfolge von Geräten. Die Gruppe spielt sie nach. Jede Runde wird sie länger.',
     bild: 'Jede Weitergabe zieht eine Lichtlinie. Am Ende steht ein gemeinsames Bild, das man speichern kann.',
     geheim: 'Das Licht geht in einer geheimen Reihenfolge weiter. Die Gruppe findet heraus, wer als Nächstes dran ist.',
+    extrem: 'Staffel mit Spur: Wer das Licht hat, zieht erst einen Punkt eine Spur entlang. Dann leuchtet das Symbol auf und das Licht geht weiter. Die Stufe passt sich jedem Kind an.'
   };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
@@ -45,6 +46,7 @@
     muster: 'Runden bis zum Sieg',
     bild: 'Weitergaben pro Bild',
     geheim: 'Stationen (höchstens so viele wie Geräte)',
+    extrem: 'Weitergaben pro Team',
   };
   const SANS = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -108,7 +110,7 @@
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
-      dkv: readNum('lk_dkv', [1, 2, 3], 2), mt: readNum('lk_mt', [1, 2, 3], 1), sb: readNum('lk_sb', [0, 1], 0), mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
+      dkv: readNum('lk_dkv', [1, 2, 3], 2), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -383,6 +385,7 @@
         case 'klassik': return isTm() ? 10 : Math.max(8, aliveIds().length * 3);
         case 'doppel': return 12;
         case 'staffel': return 12;
+        case 'extrem': return 8;
         case 'zieh': return 10;
         case 'dunkel': return 20;
         case 'muster': return 6;
@@ -681,6 +684,8 @@
       LK.store.set('lk_gn', String(st.gn));
       LK.store.set('lk_dkv', String(st.dkv));
       LK.store.set('lk_mt', String(st.mt));
+      LK.store.set('lk_xl', String(st.xl));
+      LK.store.set('lk_xa', String(st.xa));
       LK.store.set('lk_sb', String(st.sb));
       LK.store.set('lk_mf', String(st.mf));
       LK.store.set('lk_nl', String(st.nl));
@@ -858,7 +863,7 @@
       return {
         t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, dkv: st.dkv, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
         mup: st.mu ? st.mu.ph : '', mag: st.mu ? st.mu.ag : 0,
-        ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd, mt: st.mt, mf: st.mf, sb: st.sb,
+        ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd, mt: st.mt, mf: st.mf, sb: st.sb, xl: st.xl, xa: st.xa,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
         devices: aliveIds().map((id) => ({
@@ -917,6 +922,8 @@
           if ([1, 2, 3].includes(p.mt)) patch.mt = p.mt;
           if ([0, 1].includes(p.mf)) patch.mf = p.mf;
           if ([0, 1].includes(p.sb)) patch.sb = p.sb;
+          if ([1, 2, 3, 4, 5, 6].includes(p.xl)) patch.xl = p.xl;
+          if ([0, 1].includes(p.xa)) patch.xa = p.xa;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
           if (p.nr === 0 || p.nr === 1) patch.nr = p.nr;
@@ -1006,6 +1013,7 @@
         tp: (m.tk === st.sk && (m.tp === 'a' || m.tp === 'b')) ? m.tp : '', // eigene Teamwahl, gilt nur nach dem letzten Würfeln
         md: ['touch', 'taster', 'blick'].includes(m.md) ? m.md : '',
         bv: typeof m.bv === 'string' ? m.bv.slice(0, 20) : '',
+        xl: Number.isInteger(m.xl) && m.xl >= 1 && m.xl <= 6 ? m.xl : 0,
       };
       applyPeerCfg(m.id); // Vorgaben der Tafel gehen vor
       if (isHost !== true) return;
@@ -1589,6 +1597,20 @@
       ctx.fillText(`★ ${view.sc} / ${view.goal}`, cx, by + h / 2 + hr * 0.4);
     }
 
+    function drawLevels() {
+      ctx.globalCompositeOperation = 'source-over';
+      const r = baseR();
+      ctx.font = `600 ${Math.round(Math.max(12, r * 0.5))}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      Object.keys(nodes).forEach((id) => {
+        const n = nodes[id];
+        const l = peers[id] && peers[id].xl;
+        if (n.dying || !l) return;
+        const t = `Stufe ${l}`;
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(6,7,13,0.85)'; ctx.strokeText(t, n.x, n.y + r * 1.35);
+        ctx.fillStyle = 'rgba(255,225,160,0.95)'; ctx.fillText(t, n.x, n.y + r * 1.35);
+      });
+    }
     function drawTimes() {
       ctx.globalCompositeOperation = 'source-over';
       const r = baseR();
@@ -1874,6 +1896,7 @@
 
       if (view.gm === 'muster' && view.mu) drawMuMarks(now);
       if (view.zt && isHost === true) drawTimes();
+      if (view.gm === 'extrem' && isHost === true) drawLevels();
       if (view.gm === 'geheim' && view.ge && view.ge.rp && view.ge.rt) drawRoute(view.ge.rt, view.ge.ri === undefined ? -1 : view.ge.ri);
       if (view.gm === 'dunkel') { drawDarkFront(now); if (!fin) drawDarkBars(now); }
 
@@ -2061,7 +2084,7 @@
         ctx.fillText(tm ? 'Zeitspiel' : TITLES[gm], cx, cy - hr * 0.12);
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
-        ctx.fillText(`${view.goalN || ''} ${({ staffel: 'Weitergaben pro Team', zieh: 'Schritte Vorsprung', schatz: 'Sterne', muster: 'Runden', geheim: 'Stationen' })[gm] || 'Weitergaben'}`, cx, cy + hr * 0.3);
+        ctx.fillText(`${view.goalN || ''} ${({ staffel: 'Weitergaben pro Team', zieh: 'Schritte Vorsprung', extrem: 'Weitergaben pro Team', schatz: 'Sterne', muster: 'Runden', geheim: 'Stationen' })[gm] || 'Weitergaben'}`, cx, cy + hr * 0.3);
         if (LK.isTeamGm(gm)) {
           const cnt = [0, 0];
           Object.keys(view.team || {}).forEach((id) => { if (nodes[id] && !nodes[id].dying) cnt[view.team[id] ? 1 : 0]++; });
@@ -2160,7 +2183,7 @@
       }
 
       // Staffel: Fortschritt beider Teams oben
-      if (gm === 'staffel' && playersHere > 0 && !fin) {
+      if ((gm === 'staffel' || gm === 'extrem') && playersHere > 0 && !fin) {
         const bw = W * 0.34;
         const bh = Math.max(10, H * 0.022);
         const y = H * 0.06;
@@ -2243,6 +2266,8 @@
       mark('mt', st.mt);
       mark('mf', st.mf);
       mark('sb', st.sb);
+      mark('xl', st.xl);
+      mark('xa', st.xa);
       $('gnVal').textContent = st.gn ? String(st.gn) : `Auto (${st.goal})`;
       $('gmInfo').textContent = INFO[st.gm];
       $('gnLabel').textContent = GN_LABEL[st.gm];
@@ -2362,6 +2387,8 @@
     onSetting('mt', 'mt', (v) => parseInt(v, 10));
     onSetting('mf', 'mf', (v) => parseInt(v, 10));
     onSetting('sb', 'sb', (v) => parseInt(v, 10));
+    onSetting('xl', 'xl', (v) => parseInt(v, 10));
+    onSetting('xa', 'xa', (v) => parseInt(v, 10));
     // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
     document.querySelectorAll('[data-gnstep]').forEach((b) => b.addEventListener('click', () => {
       if (isHost !== true) return;
