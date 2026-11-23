@@ -381,8 +381,9 @@
     const X_BEND = [1, 2, 3, 3, 4, 4];
     const X_WIDTH = [0.17, 0.15, 0.13, 0.115, 0.11, 0.105];
     const X_FING = [1, 1, 1, 1, 2, 3];
-    const X_TIME = [3, 3.6, 6, 7.5, 9, 10.5]; // so viele Sekunden gelten als "genau richtig"
+    const X_TIME = [3, 3.6, 7, 9, 11, 14]; // so viele Sekunden gelten als "genau richtig"
     const X_COL = ['#7dd3fc', '#f9a8d4', '#fde047'];
+    const R_COL = ['#f07a6a', '#f1cd6e', '#f2e8a6', '#a5d6ae'];
     const X_SHAPES = [['free', 'free', 'free', 'sine', 'arc'], ['free', 'free', 'free', 'sine', 'arc', 'tri'], ['free', 'free', 'free', 'free', 'sine', 'tri', 'grow'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs', 'arc'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'tri', 'grow', 'stairs']];
     const X_PLAIN = ['sine', 'arc', 'tri', 'grow', 'stairs'];
     let tr = null;
@@ -512,61 +513,49 @@
       pts.forEach((q) => { q[0] = Math.max(pad, Math.min(W - pad, q[0])); q[1] = Math.max(pad, Math.min(H * 0.84, q[1])); });
       return pts;
     }
+    // Bänder (mehrere Spuren, wie bei "Slide to unlock"): dicke Bänder liegen kreuz und quer übereinander. Man zieht an jedem Band den Knopf
+    // vom Anfang zum Ende. Das Band zieht sich dabei zurück. Wo ein anderes Band oben liegt, kommt man erst durch, wenn dieses Band dort weg ist.
+    // Mehrere Bänder liegen kreuz und quer übereinander. Nur das oberste ist frei, die anderen werden nacheinander frei, sobald das davor am Ziel ist.
+    const rLocked = (p) => p.lock >= 0 && !tr.paths[p.lock].done;
     function traceBegin() {
       const W = window.innerWidth;
       const H = window.innerHeight;
       const vm = Math.min(W, H);
       const lvl = xLevel();
-      // Anzahl der Spuren: ab Stufe 3 mehrere, meist nacheinander (eine Reihenfolge finden), selten gleichzeitig
-      const n = [1, 1, 2, Math.random() < 0.5 ? 2 : 3, 3, 3][lvl - 1];
-      const w = vm * X_WIDTH[lvl - 1];
-      const kinds = X_SHAPES[lvl - 1];
-      const kind = () => kinds[Math.floor(Math.random() * kinds.length)];
-      const cross = n > 1 && (lvl < 5 || Math.random() < 0.8); // übereinander und freischalten, sonst nebeneinander mit mehreren Fingern
+      const n = [1, 1, 2, Math.random() < 0.5 ? 2 : 3, 3, Math.random() < 0.8 ? 3 : 4][lvl - 1];
       let paths = [];
+      let w = vm * X_WIDTH[lvl - 1];
       if (n === 1) {
-        paths = [{ pts: makePath(lvl, w, kind()), prog: 0, done: false, lock: -1 }];
-      } else if (cross) {
-        const order = [...Array(n).keys()].sort(() => Math.random() - 0.5);
-        for (let i = 0; i < n; i++) paths.push({ pts: makePath(lvl, w, kind()), prog: 0, done: false, lock: -1, col: X_COL[i] });
-        if (n === 3 && Math.random() < 0.45) {
-          // gemischt: Eine Spur schaltet gleich zwei andere frei, die man in beliebiger Reihenfolge ziehen kann
+        const kinds = X_SHAPES[lvl - 1];
+        paths = [{ pts: makePath(lvl, w, kinds[Math.floor(Math.random() * kinds.length)]), prog: 0, done: false, lock: -1 }];
+      } else {
+        w = vm * [0.15, 0.15, 0.125, 0.115, 0.105, 0.1][lvl - 1];
+        const order = [...Array(n).keys()].sort(() => Math.random() - 0.5); // order[0] ist frei, der Rest wird nacheinander frei
+        for (let tries = 0; tries < 40; tries++) {
+          paths = [];
+          for (let i = 0; i < n; i++) paths.push({ pts: makePath(lvl, w, 'free'), prog: 0, done: false, lock: -1, col: R_COL[i % R_COL.length] });
+          // Startknöpfe und Zielknöpfe dürfen sich nicht überdecken
+          const ends = [];
+          paths.forEach((q) => { ends.push(q.pts[0]); ends.push(q.pts[72]); });
+          let clash = false;
+          for (let i = 0; i < ends.length && !clash; i++) for (let j = i + 1; j < ends.length; j++) if (Math.hypot(ends[i][0] - ends[j][0], ends[i][1] - ends[j][1]) < w * 1.2) { clash = true; break; }
+          if (!clash) break;
+        }
+        if (n === 3 && Math.random() < 0.4) {
+          // gemischt: Ein Band schaltet gleich zwei andere frei
           paths[order[1]].lock = order[0];
           paths[order[2]].lock = order[0];
         } else {
           for (let k = 1; k < n; k++) paths[order[k]].lock = order[k - 1];
         }
-        // Die Spuren sollen sich wirklich überlagern: Startpunkte nicht aufeinander
-        for (let tries = 0; tries < 20; tries++) {
-          const bad = paths.some((p, i) => paths.some((q, j) => j > i && Math.hypot(p.pts[0][0] - q.pts[0][0], p.pts[0][1] - q.pts[0][1]) < w * 2.2));
-          if (!bad) break;
-          paths.forEach((p) => { p.pts = makePath(lvl, w, kind()); });
-        }
         tr = { order };
-      } else {
-        // nebeneinander: dieselbe Form, seitlich versetzt, alle gleichzeitig
-        const base = makePath(lvl, w * 0.8, X_PLAIN[Math.floor(Math.random() * X_PLAIN.length)]);
-        const gap = w * 1.9;
-        const dx = base[72][0] - base[0][0]; const dy = base[72][1] - base[0][1];
-        const len = Math.hypot(dx, dy);
-        const px = -dy / len; const py = dx / len;
-        for (let f = 0; f < n; f++) {
-          const off = (f - (n - 1) / 2) * gap;
-          paths.push({ pts: base.map((q) => [q[0] + px * off, q[1] + py * off]), prog: 0, done: false, lock: -1 });
-        }
-        const pad = w * 0.5 + 10;
-        let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
-        paths.forEach((p) => p.pts.forEach((q) => { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }));
-        const shx = x0 < pad ? pad - x0 : (x1 > W - pad ? (W - pad) - x1 : 0);
-        const shy = y0 < pad ? pad - y0 : (y1 > H * 0.84 ? H * 0.84 - y1 : 0);
-        paths.forEach((p) => p.pts.forEach((q) => { q[0] += shx; q[1] += shy; }));
       }
-      const order = cross ? tr.order : null;
-      tr = { paths, w, t0: performance.now(), lvl, resets: 0, done: false, fingers: {}, cross, order };
-      const last = cross ? paths[order[order.length - 1]] : null;
-      const ex0 = cross ? last.pts[72][0] : paths.reduce((a, p) => a + p.pts[72][0], 0) / paths.length;
-      const ey0 = cross ? last.pts[72][1] : paths.reduce((a, p) => a + p.pts[72][1], 0) / paths.length;
+      const order = tr && tr.order ? tr.order : null;
+      tr = { paths, w, t0: performance.now(), lvl, resets: 0, done: false, fingers: {}, ribbon: n > 1, order };
+      const last = n > 1 ? paths[order[order.length - 1]] : paths[0];
       const hold = $('hold');
+      const ex0 = last.pts[72][0];
+      const ey0 = last.pts[72][1];
       hold.style.left = `${ex0}px`;
       hold.style.top = `${ey0}px`;
       scrPlay.style.setProperty('--gx', `${(ex0 / W) * 100}%`);
@@ -580,54 +569,76 @@
       tr = null;
       trCv().hidden = true;
     }
-    const pLocked = (p) => p.lock >= 0 && !tr.paths[p.lock].done;
+    function ribbonDraw(g, now) {
+      const w = tr.w;
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      const strokeSeg = (pts, from, to, width, style) => {
+        if (to <= from) return;
+        g.beginPath();
+        for (let k = from; k <= to; k++) { if (k === from) g.moveTo(pts[k][0], pts[k][1]); else g.lineTo(pts[k][0], pts[k][1]); }
+        g.lineWidth = width; g.strokeStyle = style; g.stroke();
+      };
+      const shade = (c, f) => { const n = parseInt(c.slice(1), 16); return `rgb(${Math.round((n >> 16) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; };
+      const hide = tr.lvl >= 6; // ab Stufe 6 sieht man den Bändern nicht an, welches noch gesperrt ist
+      const locked = (p) => rLocked(p);
+      // gesperrte Bänder liegen unten, freie oben
+      const order = tr.paths.map((p, i) => i).sort((x, y) => (locked(tr.paths[y]) ? 1 : 0) - (locked(tr.paths[x]) ? 1 : 0));
+      order.forEach((i) => {
+        const p = tr.paths[i];
+        const dim = locked(p) && !hide;
+        g.globalAlpha = dim ? 0.55 : 1;
+        // Zielknopf
+        g.beginPath(); g.arc(p.pts[72][0], p.pts[72][1], w * 0.5, 0, Math.PI * 2); g.fillStyle = shade(p.col, 0.7); g.fill();
+        // Band: vom Knopf bis zum Ziel, wird beim Ziehen kürzer
+        strokeSeg(p.pts, p.prog, 72, w, p.col);
+        // Knopf
+        const q = p.pts[Math.min(72, p.prog)];
+        g.beginPath(); g.arc(q[0], q[1], w * 0.5, 0, Math.PI * 2); g.fillStyle = shade(p.col, 0.7); g.fill();
+        if (!p.done && !dim) {
+          const k = 0.5 + 0.5 * Math.sin(now / 300);
+          g.beginPath(); g.arc(q[0], q[1], w * (0.5 + 0.06 * k), 0, Math.PI * 2); g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,0.55)'; g.stroke();
+        }
+        if (dim) {
+          // Schloss: kleiner Ring in der Farbe des Bandes, das dieses öffnet
+          const kc = tr.paths[p.lock].col;
+          g.beginPath(); g.arc(q[0], q[1], w * 0.2, 0, Math.PI * 2); g.lineWidth = 5; g.strokeStyle = kc; g.stroke();
+          g.fillStyle = kc; g.fillRect(q[0] - w * 0.12, q[1] - w * 0.02, w * 0.24, w * 0.16);
+        }
+        g.globalAlpha = 1;
+      });
+    }
     function traceDraw(now) {
       if (!tr) return;
       const cv = trCv();
       const g = cv.getContext('2d');
       g.setTransform(2, 0, 0, 2, 0, 0);
       g.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      const team = getComputedStyle(scrPlay).getPropertyValue('--c').trim() || '#7dd3fc';
-      // gesperrte Spuren zuerst (liegen unten), die freien oben
-      const order = tr.paths.map((p, i) => i).sort((a, b) => (pLocked(tr.paths[b]) ? 1 : 0) - (pLocked(tr.paths[a]) ? 1 : 0));
-      order.forEach((i) => {
-        const p = tr.paths[i];
-        const pts = p.pts;
-        const col = p.col || team;
-        const locked = pLocked(p) && tr.lvl < 6; // ab Stufe 6 sieht man den Spuren nicht mehr an, welche gesperrt ist
-        g.lineCap = 'round'; g.lineJoin = 'round';
-        const stroke = (from, to, width, style, blur, dash) => {
-          g.beginPath();
-          for (let k = from; k <= to; k++) { if (k === from) g.moveTo(pts[k][0], pts[k][1]); else g.lineTo(pts[k][0], pts[k][1]); }
-          g.setLineDash(dash || []);
-          g.lineWidth = width; g.strokeStyle = style; g.shadowColor = col; g.shadowBlur = blur; g.stroke();
-          g.shadowBlur = 0; g.setLineDash([]);
-        };
-        g.globalAlpha = locked ? 0.4 : 1;
-        stroke(0, pts.length - 1, tr.w, p.col ? `${col}33` : 'rgba(255,255,255,0.10)', 0);
-        stroke(0, pts.length - 1, locked ? 4 : 3, locked ? col : 'rgba(255,255,255,0.4)', 0, locked ? [10, 12] : null);
-        if (p.prog > 0) stroke(0, p.prog, tr.w * 0.55, col, 24);
-        if (p.done) { stroke(0, pts.length - 1, tr.w * 0.4, col, 18); }
-        g.globalAlpha = 1;
-        if (!p.done) {
-          if (locked) {
-            // Schloss: Ring in der Farbe der Spur, die es öffnet
-            const kc = tr.paths[p.lock].col || team;
-            g.beginPath(); g.arc(pts[0][0], pts[0][1], tr.w * 0.42, 0, Math.PI * 2);
-            g.fillStyle = '#10121f'; g.fill();
-            g.lineWidth = 5; g.strokeStyle = kc; g.stroke();
-            g.fillStyle = kc; g.fillRect(pts[0][0] - tr.w * 0.14, pts[0][1] - tr.w * 0.04, tr.w * 0.28, tr.w * 0.2);
-            g.beginPath(); g.arc(pts[0][0], pts[0][1] - tr.w * 0.04, tr.w * 0.1, Math.PI, 0); g.lineWidth = 4; g.stroke();
-          } else {
+      if (tr.ribbon) {
+        ribbonDraw(g, now);
+      } else {
+        const col = getComputedStyle(scrPlay).getPropertyValue('--c').trim() || '#7dd3fc';
+        tr.paths.forEach((p) => {
+          const pts = p.pts;
+          g.lineCap = 'round'; g.lineJoin = 'round';
+          const stroke = (from, to, width, style, blur) => {
+            g.beginPath();
+            for (let k = from; k <= to; k++) { if (k === from) g.moveTo(pts[k][0], pts[k][1]); else g.lineTo(pts[k][0], pts[k][1]); }
+            g.lineWidth = width; g.strokeStyle = style; g.shadowColor = col; g.shadowBlur = blur; g.stroke();
+            g.shadowBlur = 0;
+          };
+          stroke(0, pts.length - 1, tr.w, 'rgba(255,255,255,0.10)', 0);
+          stroke(0, pts.length - 1, 3, 'rgba(255,255,255,0.4)', 0);
+          if (p.prog > 0) stroke(0, p.prog, tr.w * 0.55, col, 24);
+          if (!p.done) {
             const k = 0.5 + 0.5 * Math.sin(now / 260);
             g.beginPath(); g.arc(pts[0][0], pts[0][1], tr.w * (0.42 + 0.1 * k), 0, Math.PI * 2);
             g.fillStyle = col; g.globalAlpha = 0.95; g.fill(); g.globalAlpha = 1;
           }
-        }
-      });
+        });
+      }
       Object.values(tr.fingers).forEach((f) => {
-        g.beginPath(); g.arc(f.x, f.y, tr.w * 0.3, 0, Math.PI * 2);
-        g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 20; g.fill(); g.shadowBlur = 0;
+        g.beginPath(); g.arc(f.x, f.y, tr.w * 0.18, 0, Math.PI * 2);
+        g.fillStyle = 'rgba(255,255,255,0.9)'; g.fill();
       });
       requestAnimationFrame(traceDraw);
     }
@@ -647,7 +658,7 @@
       lockUntil = 0;
       sendHb();
       render();
-      // Am Ende der Spur geht das Licht gleich weiter, ohne noch einmal zu tippen
+      // Am Ende geht das Licht gleich weiter, ohne noch einmal zu tippen
       const light = myLight();
       if (light && !light.z && !st.paused && holding) setTimeout(() => { if (holding && tr && tr.done) finishPass(myLight() || light, false); }, 180);
     }
@@ -655,20 +666,33 @@
       const f = tr && tr.fingers[e.pointerId];
       if (!f) return;
       f.x = e.clientX; f.y = e.clientY;
-      const p = tr.paths[f.i];
+      const i = f.i;
+      const p = tr.paths[i];
       if (p.done) return;
       const lo = Math.max(0, p.prog - 2);
-      const hi = Math.min(p.pts.length - 1, p.prog + 22);
+      const hi = Math.min(p.pts.length - 1, p.prog + 24);
       let best = -1; let bd = Infinity;
-      for (let i = lo; i <= hi; i++) {
-        const d = Math.hypot(p.pts[i][0] - e.clientX, p.pts[i][1] - e.clientY);
-        if (d < bd) { bd = d; best = i; }
+      for (let k = lo; k <= hi; k++) {
+        const d = Math.hypot(p.pts[k][0] - e.clientX, p.pts[k][1] - e.clientY);
+        if (d < bd) { bd = d; best = k; }
+      }
+      if (tr.ribbon) {
+        // Band: Der Knopf folgt dem Finger entlang des Bandes. Wer abrutscht, behält den Fortschritt, das Band wird nie wieder länger.
+        if (bd <= tr.w * 1.4 && best > p.prog) {
+          p.prog = best;
+          if (p.prog >= p.pts.length - 3) {
+            p.prog = 72;
+            p.done = true;
+            if (sound && slot >= 0) LK.audio.note(slot, 0.2, 0.7, 0, 2); // ein Band ist weg, das nächste wird frei
+            if (tr.paths.every((q) => q.done)) traceFinished();
+          }
+        }
+        return;
       }
       if (bd <= tr.w * 0.62) {
         if (best > p.prog) p.prog = best;
         if (p.prog >= p.pts.length - 3) {
           p.done = true;
-          if (sound && slot >= 0 && tr.cross) LK.audio.note(slot, 0.2, 0.7, 0, 2); // eine Spur ist frei geschaltet
           if (tr.paths.every((q) => q.done)) traceFinished();
         }
       } else if (bd > tr.w * 1.1 && p.prog > 0) {
@@ -682,13 +706,13 @@
       e.preventDefault();
       let bi = -1; let bd = Infinity;
       tr.paths.forEach((p, i) => {
-        if (p.done || pLocked(p) || Object.values(tr.fingers).some((f) => f.i === i)) return;
-        const d = Math.hypot(p.pts[0][0] - e.clientX, p.pts[0][1] - e.clientY);
+        if (p.done || (tr.ribbon && rLocked(p)) || Object.values(tr.fingers).some((f) => f.i === i)) return;
+        const q = p.pts[tr.ribbon ? Math.min(72, p.prog) : 0];
+        const d = Math.hypot(q[0] - e.clientX, q[1] - e.clientY);
         if (d < bd) { bd = d; bi = i; }
       });
       if (bi < 0 || bd > tr.w * 1.3) {
-        // Auf einem noch gesperrten Start passiert nichts, nur ein kurzes Zucken
-        if (tr.cross && tr.paths.some((p) => !p.done && pLocked(p) && Math.hypot(p.pts[0][0] - e.clientX, p.pts[0][1] - e.clientY) < tr.w * 1.3) && navigator.vibrate) { try { navigator.vibrate(20); } catch (err) { /* egal */ } }
+        if (tr.ribbon && navigator.vibrate && tr.paths.some((p) => !p.done && rLocked(p) && Math.hypot(p.pts[Math.min(72, p.prog)][0] - e.clientX, p.pts[Math.min(72, p.prog)][1] - e.clientY) < tr.w * 0.8)) { try { navigator.vibrate(20); } catch (err) { /* egal */ } }
         return;
       }
       tr.fingers[e.pointerId] = { i: bi, x: e.clientX, y: e.clientY };
@@ -700,7 +724,7 @@
       const f = tr.fingers[e.pointerId];
       if (!f) return;
       const p = tr.paths[f.i];
-      if (!p.done) { if (p.prog > 0) tr.resets++; p.prog = 0; }
+      if (!tr.ribbon && !p.done) { if (p.prog > 0) tr.resets++; p.prog = 0; }
       delete tr.fingers[e.pointerId];
     };
     trCv().addEventListener('pointerup', traceUp);
@@ -885,7 +909,7 @@
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
       else if (tg.msg) msg = tg.msg;
-      else if (iHold && tr && !tr.done) msg = tr.cross ? (tr.lvl >= 6 ? 'Finde die richtige Reihenfolge' : 'Welche Spur schaltet die nächste frei?') : (tr.paths.length > 1 ? `Zieh die ${tr.paths.length} Spuren gleichzeitig` : 'Zieh den Punkt die Spur entlang');
+      else if (iHold && tr && !tr.done) msg = tr.ribbon ? (tr.lvl >= 6 ? 'Finde die richtige Reihenfolge' : 'Welches Band ist zuerst dran?') : 'Zieh den Punkt die Spur entlang';
       else if (iHold && tr && tr.done) msg = 'Geschafft!';
       else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
