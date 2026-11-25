@@ -71,10 +71,10 @@
     const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
     const eTeam = () => { const t = cfg().tt; if (typeof t === 'string' && t.length === 1 && 'abcd'.includes(t)) return t; return t === 'x' ? '' : team; };
     // Größe: Bei Tippen (springender Punkt) ist der Standard kleiner, sonst normal
-    const eSize = () => cfg().sz || (st && st.gm === 'basal' ? 1.4 : (useRandom() ? 0.75 : 1));
+    const eSize = () => cfg().sz || (st && st.gm === 'basal' ? 1.4 : (xBlick() && mtNeed() > 1 ? 1.4 : (useRandom() ? 0.75 : 1)));
     // Sperre nach Ankunft des Lichts: bei Basal kurz, sonst je nach Eingabeart
     // Basal und Dunkelheit: kurze Sperre, damit nichts verzögert (die Dunkelheit läuft ja gegen die Zeit)
-    const lockMs = () => (st && (st.gm === 'basal' || st.gm === 'dunkel') && mode !== 'blick' ? 250 : MODES[mode].lock);
+    const lockMs = () => (st && st.gm === 'extrem' && mode === 'taster' ? 300 : (st && (st.gm === 'basal' || st.gm === 'dunkel') && mode !== 'blick' ? 250 : MODES[mode].lock));
     // Staffel: Die Schüler wählen ihr Team selbst (wenn die Tafel das eingestellt hat)
     let pickTeam = '';   // 'a' | 'b' | ''
     let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
@@ -146,7 +146,11 @@
 
     // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
     const trOn = () => !!(st && st.gm === 'extrem' && mode === 'touch');
-    const useRandom = () => trOn() || eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
+    // Staffel Hardcore am Taster: Die Stufe bestimmt, wie oft man drücken muss (Stufe 1 und 2: einmal, bis Stufe 6: fünfmal)
+    const xTaster = () => !!(st && st.gm === 'extrem' && mode === 'taster');
+    // Am Blick (Augensteuerung) ebenso, aber höchstens dreimal, weil jedes Auslösen etwa drei Sekunden Blick braucht. Der Kreis springt nach jedem Auslösen.
+    const xBlick = () => !!(st && st.gm === 'extrem' && mode === 'blick');
+    const useRandom = () => trOn() || (xBlick() && mtNeed() > 1) || eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
     const hintText = () => {
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
@@ -401,21 +405,20 @@
       if (!on && cdAt) { cdAt = 0; clearInterval(cdTick); }
       $('cdOv').hidden = !on || performance.now() - cdAt > (st.cd || 3000) + 600;
     }
-    // ---------- Lichtkette extrem: erst eine Spur nachziehen, dann geht das Licht von selbst weiter ----------
+    // ---------- Staffel Hardcore: erst eine Spur nachziehen, dann geht das Licht von selbst weiter ----------
     // Stufen 1 bis 6: mehr Kurven, schmalere Spur. Ab Stufe 5 mehrere Spuren: nebeneinander (gleichzeitig mit mehreren Fingern)
     // oder übereinander (kreuz und quer, jede muss erst von einer anderen freigeschaltet werden). Die Stufe passt sich jedem Gerät an.
-    const X_BEND = [1, 2, 3, 3, 4, 4];
-    const X_WIDTH = [0.17, 0.15, 0.13, 0.115, 0.11, 0.105];
-    const X_FING = [1, 1, 1, 1, 2, 3];
-    const X_TIME = [3, 3.6, 7, 9, 11, 14]; // so viele Sekunden gelten als "genau richtig"
+    const X_BEND = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5];
+    const X_WIDTH = [0.17, 0.155, 0.14, 0.13, 0.12, 0.11, 0.105, 0.1, 0.095, 0.09];
+    const X_TIME = [3, 3.6, 4.4, 7, 9, 11, 13, 14, 16, 18]; // so viele Sekunden gelten als "genau richtig"
     const X_COL = ['#7dd3fc', '#f9a8d4', '#fde047'];
     const R_COL = ['#f07a6a', '#f1cd6e', '#f2e8a6', '#a5d6ae'];
-    const X_SHAPES = [['free', 'free', 'free', 'sine', 'arc'], ['free', 'free', 'free', 'sine', 'arc', 'tri'], ['free', 'free', 'free', 'free', 'sine', 'tri', 'grow'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs', 'arc'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'tri', 'grow', 'stairs']];
+    const X_SHAPES = [['free', 'free', 'free', 'sine', 'arc'], ['free', 'free', 'free', 'sine', 'arc', 'tri'], ['free', 'free', 'free', 'sine', 'tri', 'grow'], ['free', 'free', 'free', 'free', 'sine', 'tri', 'grow'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs', 'arc'], ['free', 'free', 'free', 'free', 'tri', 'grow', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'tri', 'grow', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'tri', 'grow', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'free', 'tri', 'stairs'], ['free', 'free', 'free', 'free', 'free', 'free', 'free', 'stairs']];
     const X_PLAIN = ['sine', 'arc', 'tri', 'grow', 'stairs'];
     let tr = null;
     let xLvl = 0;
     let xStreak = 0;
-    const xLevel = () => { if (!xLvl) xLvl = (st && st.xl) || 2; return Math.max(1, Math.min(6, xLvl)); };
+    const xLevel = () => { if (!xLvl) xLvl = (st && st.xl) || 2; return Math.max(1, Math.min(10, xLvl)); };
     const trCv = () => $('traceCv');
     const smooth = (u) => u * u * (3 - 2 * u);
     // Form der Auslenkung (-1 bis 1) entlang der Spur, t von 0 bis 1
@@ -446,12 +449,12 @@
         const dx = E[0] - S[0]; const dy = E[1] - S[1];
         const len = Math.hypot(dx, dy) || 1;
         const px = -dy / len; const py = dx / len;
-        const kmid = lvl + 1 + (Math.random() < 0.5 ? 0 : 1);
+        const kmid = Math.min(lvl, 7) + 1 + (Math.random() < 0.5 ? 0 : 1);
         const ctrl = [S];
         let side = Math.random() < 0.5 ? 1 : -1;
         for (let i = 1; i <= kmid; i++) {
           const t = Math.min(0.96, Math.max(0.04, i / (kmid + 1) + rnd(-0.35, 0.35) / (kmid + 1)));
-          const off = side * rnd(0.35, 1) * Math.min(len * 0.4, vm * 0.32) * ease * (0.6 + 0.1 * lvl);
+          const off = side * rnd(0.35, 1) * Math.min(len * 0.4, vm * 0.32) * ease * (0.6 + 0.1 * Math.min(lvl, 8));
           ctrl.push(clampPt([S[0] + dx * t + px * off, S[1] + dy * t + py * off]));
           side = Math.random() < 0.75 ? -side : side;
         }
@@ -493,8 +496,7 @@
     }
     function makePath(lvl, w, kind, orient) {
       if (kind === 'free') {
-        const fp = freePath(lvl, w);
-        if (fp) return fp;
+        for (let t = 0; t < 5; t++) { const fp = freePath(lvl, w); if (fp) return fp; }
         kind = 'sine';
       }
       const W = window.innerWidth;
@@ -523,7 +525,7 @@
       const bends = X_BEND[lvl - 1];
       const fn = shapeFn(kind, bends);
       const sign = Math.random() < 0.5 ? 1 : -1;
-      let amp = Math.min(len * 0.22, vm * 0.24) * (0.55 + 0.08 * lvl);
+      let amp = Math.min(len * 0.22, vm * 0.24) * (0.55 + 0.08 * Math.min(lvl, 8));
       let pts = [];
       for (let attempt = 0; attempt < 8; attempt++) {
         pts = [];
@@ -548,14 +550,14 @@
       const H = window.innerHeight;
       const vm = Math.min(W, H);
       const lvl = xLevel();
-      const n = [1, 1, 2, Math.random() < 0.5 ? 2 : 3, 3, Math.random() < 0.8 ? 3 : 4][lvl - 1];
+      const n = [1, 1, 1, 2, 2, 3, 3, 3, Math.random() < 0.5 ? 3 : 4, 4][lvl - 1];
       let paths = [];
       let w = vm * X_WIDTH[lvl - 1];
       if (n === 1) {
         const kinds = X_SHAPES[lvl - 1];
         paths = [{ pts: makePath(lvl, w, kinds[Math.floor(Math.random() * kinds.length)]), prog: 0, done: false, lock: -1 }];
       } else {
-        w = vm * [0.15, 0.15, 0.125, 0.115, 0.105, 0.1][lvl - 1];
+        w = vm * [0.15, 0.15, 0.14, 0.125, 0.115, 0.105, 0.1, 0.095, 0.09, 0.085][lvl - 1];
         const order = [...Array(n).keys()].sort(() => Math.random() - 0.5); // order[0] ist frei, der Rest wird nacheinander frei
         for (let tries = 0; tries < 40; tries++) {
           paths = [];
@@ -605,7 +607,7 @@
         g.lineWidth = width; g.strokeStyle = style; g.stroke();
       };
       const shade = (c, f) => { const n = parseInt(c.slice(1), 16); return `rgb(${Math.round((n >> 16) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; };
-      const hide = tr.lvl >= 6; // ab Stufe 6 sieht man den Bändern nicht an, welches noch gesperrt ist
+      const hide = tr.lvl >= 8; // ab Stufe 8 sieht man den Bändern nicht an, welches noch gesperrt ist
       const locked = (p) => rLocked(p);
       // gesperrte Bänder liegen unten, freie oben
       const order = tr.paths.map((p, i) => i).sort((x, y) => (locked(tr.paths[y]) ? 1 : 0) - (locked(tr.paths[x]) ? 1 : 0));
@@ -675,7 +677,7 @@
       const T = X_TIME[tr.lvl - 1];
       if (st && st.xa === 1) {
         const ratio = secs / T;
-        if (ratio < 0.65 && tr.resets === 0) { xStreak++; if (xStreak >= 2 && xLvl < 6) { xLvl = Math.min(6, xLevel() + 1); xStreak = 0; } }
+        if (ratio < 0.65 && tr.resets === 0) { xStreak++; if (xStreak >= 2 && xLevel() < 10) { xLvl = Math.min(10, xLevel() + 1); xStreak = 0; } }
         else if (ratio > 1.7 || tr.resets >= 3) { xLvl = Math.max(1, xLevel() - 1); xStreak = 0; }
         else xStreak = 0;
       }
@@ -760,7 +762,11 @@
     let mtHit = 0;
     let holdGated = false;
     // Die Einstellung des Spiels gilt für Touch. Taster und Blick-Maus machen nur mit, wenn die Tafel es für dieses Gerät eingestellt hat.
-    const mtNeed = () => { if (!st || !LK.isTeamGm(st.gm) || st.gm === 'extrem') return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
+    const X_PRESS = [1, 1, 2, 2, 3, 3, 4, 4, 5, 6];
+    const X_PRESS_B = [1, 1, 2, 2, 2, 3, 3, 3, 3, 4];
+    const X_BTIME = [6, 6.5, 10, 10.5, 11, 16, 16.5, 17, 17.5, 22]; // Blick: Sekunden, die als "genau richtig" gelten
+    const X_TTIME = [3, 3.2, 4.5, 5, 6, 6.5, 7.5, 8, 9, 10.5]; // so viele Sekunden gelten am Taster als "genau richtig"
+    const mtNeed = () => { if (st && st.gm === 'extrem') return xTaster() ? X_PRESS[xLevel() - 1] : (xBlick() ? X_PRESS_B[xLevel() - 1] : 1); if (!st || !LK.isTeamGm(st.gm)) return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
     function placeTarget() {
       const hold = $('hold');
       const w = window.innerWidth;
@@ -812,7 +818,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, xl: trOn() && slot >= 0 ? xLevel() : 0, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
+      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, xl: (trOn() || xTaster() || xBlick()) && slot >= 0 ? xLevel() : 0, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -867,6 +873,7 @@
       if (iHold && !holding) {
         holding = true;
         lightTapped = false;
+        xT0 = performance.now();
         if (!freeStars()) { starCount = 0; clearTimeout(starTimer); lastStarPos = null; $('star').dataset.placed = ''; }
         mtHit = 0;
         holdGated = false;
@@ -947,8 +954,10 @@
       else if (performance.now() < missUntil) msg = 'Daneben! Strafpause';
       else if (paused) msg = light.pn ? 'Strafpause …' : 'Kurze Pause …';
       else if (tg.msg) msg = tg.msg;
-      else if (iHold && tr && !tr.done) msg = tr.ribbon ? (tr.lvl >= 6 ? 'Finde die richtige Reihenfolge' : 'Welches Band ist zuerst dran?') : 'Zieh den Punkt die Spur entlang';
+      else if (iHold && tr && !tr.done) msg = tr.ribbon ? (tr.lvl >= 8 ? 'Finde die richtige Reihenfolge' : 'Welches Band ist zuerst dran?') : 'Zieh den Punkt die Spur entlang';
       else if (iHold && tr && tr.done) msg = 'Geschafft!';
+      else if (iHold && xTaster() && mtNeed() > 1) msg = `Drücke den Taster ${mtNeed()}-mal (${Math.min(mtHit + 1, mtNeed())}. Druck)`;
+      else if (iHold && xBlick() && mtNeed() > 1) msg = `Schau ${mtNeed()}-mal auf den Kreis (${Math.min(mtHit + 1, mtNeed())}. Mal)`;
       else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
       else if (freeStars() && myBatch() && !iHold) msg = `Sammle deine Sterne ★ (${Math.min(starCount + 1, starTotal())} von ${starTotal()})`;
       else if (freeStars() && !iHold && st.ph === 'play') msg = st.gm === 'sduell' ? 'Gleich kommen neue Sterne' : 'Gleich kommen neue Sterne, achte auf das Licht';
@@ -963,7 +972,7 @@
       const bits = [];
       if (fresh && LK.isTeamGm(st.gm) && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
       if (iHold && st.gm === 'doppel') bits.push(`Licht ${light.k + 1}`);
-      if (fresh && trOn() && slot >= 0) bits.push(`Stufe ${xLevel()}`);
+      if (fresh && (trOn() || xTaster() || xBlick()) && slot >= 0) bits.push(`Stufe ${xLevel()}`);
       if (iHold && mtNeed() > 1) bits.push(`Tipp ${Math.min(mtHit + 1, mtNeed())} von ${mtNeed()}`);
       if (fresh && st.gm === 'schatz' && st.stars && st.stars.includes(ID)) bits.push('★ Hier liegt ein Stern');
       $('tag').textContent = bits.join(' · ');
@@ -1084,7 +1093,7 @@
         if (mtHit < mtNeed()) {
           if (sound && slot >= 0) LK.audio.note(slot, 0.25, 0.8, 0, 2);
           if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* egal */ } }
-          lockUntil = performance.now() + (mode === 'touch' ? 250 : Math.max(400, lockMs()));
+          lockUntil = performance.now() + (mode === 'touch' ? 250 : (xTaster() ? 300 : Math.max(400, lockMs())));
           if (useRandom()) placeTarget();
           flashMsg = `${mtHit} von ${mtNeed()} ✓`;
           flashUntil = performance.now() + 900;
@@ -1171,7 +1180,19 @@
       }, sj * 1000);
     }
 
+    // Staffel Hardcore am Taster: Die Stufe passt sich an die Geschwindigkeit an (schnell = mehr Drücke, langsam = weniger)
+    let xT0 = 0;
+    function xTasterAdapt() {
+      if (!(xTaster() || xBlick()) || !xT0 || !st || st.xa !== 1) return;
+      const secs = (performance.now() - xT0) / 1000;
+      const ratio = secs / (xBlick() ? X_BTIME : X_TTIME)[xLevel() - 1];
+      if (ratio < 0.65) { xStreak++; if (xStreak >= 2 && xLevel() < 10) { xLvl = Math.min(10, xLevel() + 1); xStreak = 0; } }
+      else if (ratio > 1.7) { xLvl = Math.max(1, xLevel() - 1); xStreak = 0; }
+      else xStreak = 0;
+      xT0 = 0;
+    }
     function finishPass(light, collect) {
+      xTasterAdapt();
       mtHit = 0;
       traceEnd();
       holding = false;

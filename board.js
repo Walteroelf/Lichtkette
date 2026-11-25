@@ -21,7 +21,7 @@
   const NL_OPTIONS = [2, 3];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
   const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim', 'extrem', 'regen', 'sduell'];
-  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', regen: 'Sternenregen', sduell: 'Sterne gegeneinander', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Staffel Hardcore', regen: 'Sternenregen', sduell: 'Sterne gegeneinander', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
     basal: 'Ganz einfach: Das Licht wandert ohne Zeitdruck und ohne Ziel von Gerät zu Gerät. Jede Weitergabe klingt. Große feste Tippfläche.',
     klassik: 'Ein Licht wandert zufällig von Gerät zu Gerät. Wahlweise als Zeitspiel mit Bestzeit.',
@@ -115,7 +115,7 @@
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0, 0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), tn: readNum('lk_tn', [2, 3, 4], 2), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
-      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), fs: readNum('lk_fs', [0, 1, 2, 3], 0), sr: {}, mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
+      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), fs: readNum('lk_fs', [0, 1, 2, 3], 0), sr: {}, mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -764,7 +764,7 @@
       LK.store.set('lk_gn', String(st.gn));
       LK.store.set('lk_dkv2', String(st.dkv));
       LK.store.set('lk_mt', String(st.mt));
-      LK.store.set('lk_xl', String(st.xl));
+      LK.store.set('lk_xl2', String(st.xl));
       LK.store.set('lk_xa', String(st.xa));
       LK.store.set('lk_sb', String(st.sb));
       LK.store.set('lk_fs', String(st.fs));
@@ -1004,7 +1004,7 @@
           if ([0, 1].includes(p.sb)) patch.sb = p.sb;
           if ([2, 3, 4].includes(p.tn)) patch.tn = p.tn;
           if ([0, 1, 2, 3].includes(p.fs)) patch.fs = p.fs;
-          if ([1, 2, 3, 4, 5, 6].includes(p.xl)) patch.xl = p.xl;
+          if (Number.isInteger(p.xl) && p.xl >= 1 && p.xl <= 10) patch.xl = p.xl;
           if ([0, 1].includes(p.xa)) patch.xa = p.xa;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
@@ -1097,7 +1097,7 @@
         tp: (m.tk === st.sk && typeof m.tp === 'string' && m.tp.length === 1 && 'abcd'.includes(m.tp)) ? m.tp : '', // eigene Teamwahl, gilt nur nach dem letzten Würfeln
         md: ['touch', 'taster', 'blick'].includes(m.md) ? m.md : '',
         bv: typeof m.bv === 'string' ? m.bv.slice(0, 20) : '',
-        xl: Number.isInteger(m.xl) && m.xl >= 1 && m.xl <= 6 ? m.xl : 0,
+        xl: Number.isInteger(m.xl) && m.xl >= 1 && m.xl <= 10 ? m.xl : 0,
       };
       applyPeerCfg(m.id); // Vorgaben der Tafel gehen vor
       if (isHost !== true) return;

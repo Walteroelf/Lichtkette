@@ -6,7 +6,7 @@
 // - Namen der Geräte bleiben nur hier, sie gehen nie ins Netz und stehen nicht auf der Tafel.
 (function (LK) {
   const $ = (id) => document.getElementById(id);
-  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', regen: 'Sternenregen', sduell: 'Sterne gegeneinander', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Staffel Hardcore', regen: 'Sternenregen', sduell: 'Sterne gegeneinander', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
     basal: '',
