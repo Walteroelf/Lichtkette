@@ -70,7 +70,8 @@
     let cdTimer = null;
     let decideTimer = null;
     // Neue Spielarten: Dunkelheit (dk*), Muster (mu*), Geheime Reihenfolge (ge*)
-    const DK_RATE = [0, 1 / 30, 1 / 18, 1 / 11]; // Dunkelheit wächst pro Sekunde: ruhig, mittel, schnell
+    // Dunkelheit wächst pro Sekunde. Stufe 1 braucht etwa 90 Sekunden bis ganz dunkel, Stufe 10 etwa 11 Sekunden (gleichmäßig abgestuft)
+    const dkBase = (l) => 1 / (90 * Math.pow(11 / 90, (Math.max(1, Math.min(10, l)) - 1) / 9));
     const DK_PUSH = 0.035; // so viel drängt jede Weitergabe sie zurück
     let dkStamp = 0;
     let dkTimer = null;
@@ -110,7 +111,7 @@
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
-      dkv: readNum('lk_dkv', [1, 2, 3], 2), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
+      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -401,7 +402,7 @@
       const l = st.lights[0];
       if (st.gm !== 'dunkel' || st.ph !== 'play' || st.finale || finishing || st.paused || !l || !l.h || l.z || isNt(l.h)) return 0;
       const ramp = 1 + 1.5 * Math.min(1, st.chain / Math.max(1, st.goal)); // wird zum Ende hin schneller
-      return (DK_RATE[st.dkv] || DK_RATE[2]) * ramp;
+      return dkBase(st.dkv || 4) * ramp;
     }
     const dkLevel = () => Math.min(1, Math.max(0, st.dk + st.dkr * ((Date.now() - dkStamp) / 1000)));
     function dkSet(level, rate) { st.dk = level; st.dkr = rate; dkStamp = Date.now(); }
@@ -682,7 +683,7 @@
       LK.store.set('lk_gm', st.gm);
       LK.store.set('lk_tm', String(st.tm));
       LK.store.set('lk_gn', String(st.gn));
-      LK.store.set('lk_dkv', String(st.dkv));
+      LK.store.set('lk_dkv2', String(st.dkv));
       LK.store.set('lk_mt', String(st.mt));
       LK.store.set('lk_xl', String(st.xl));
       LK.store.set('lk_xa', String(st.xa));
@@ -918,7 +919,7 @@
           if (GAMES.includes(p.gm)) patch.gm = p.gm;
           if (p.tm === 0 || p.tm === 1) patch.tm = p.tm;
           if (validGn(p.gn)) patch.gn = p.gn;
-          if ([1, 2, 3].includes(p.dkv)) patch.dkv = p.dkv;
+          if (Number.isInteger(p.dkv) && p.dkv >= 1 && p.dkv <= 10) patch.dkv = p.dkv;
           if ([1, 2, 3].includes(p.mt)) patch.mt = p.mt;
           if ([0, 1].includes(p.mf)) patch.mf = p.mf;
           if ([0, 1].includes(p.sb)) patch.sb = p.sb;
@@ -977,6 +978,8 @@
         st.n = aliveIds().length;
         st.best = bestFor(st.goal, st.n);
       }
+      // Dunkelheit: Der gesendete Stand muss der von jetzt sein, sonst springt die Anzeige bei jeder Meldung zurück und der Schatten wirkt kleiner, als er ist
+      if (st.gm === 'dunkel') dkSet(dkLevel(), st.dkr);
       st.ts = Date.now();
       net.send('state', st);
       applyState(st);
@@ -1742,7 +1745,7 @@
       const y2 = H - bh - 16;
       const y1 = y2 - bh - bh * 1.9;
       bar(y1, prog, 'rgba(255,214,120,0.95)', 'Licht der Gruppe', `${view.chain || 0} von ${view.goal || 0}`);
-      bar(y2, lvl, danger ? `rgba(255,90,90,${blink})` : 'rgba(150,130,255,0.9)', danger ? 'Dunkelheit: gleich ist es zu spät!' : 'Dunkelheit', `${Math.round(lvl * 100)} %`);
+      bar(y2, lvl, danger ? `rgba(255,90,90,${blink})` : 'rgba(150,130,255,0.9)', danger ? 'Dunkelheit: gleich ist es zu spät!' : (view.dkr === 0 ? 'Dunkelheit steht still' : 'Dunkelheit'), `${Math.round(lvl * 100)} %`);
     }
 
     function draw(now) {

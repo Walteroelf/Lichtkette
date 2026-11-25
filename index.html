@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261123-1259">
+<meta name="build" content="20261125-1720">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -33,7 +33,7 @@
 <title>Lichtkette</title>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=20261123-1259">
+<link rel="stylesheet" href="style.css?v=20261125-1720">
 </head>
 <body>
 
@@ -125,8 +125,8 @@
         <div class="seg wide"><button data-tmf="0">egal</button><button data-tmf="1">fängt von vorn an</button></div>
       </div>
       <div data-tfor="dunkel" class="t-row">
-        <label>Tempo der Dunkelheit (steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat)</label>
-        <div class="seg wide"><button data-tdkv="1">ruhig</button><button data-tdkv="2">mittel</button><button data-tdkv="3">schnell</button></div>
+        <label>Tempo der Dunkelheit: 1 sehr ruhig bis 10 sehr schnell (steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat)</label>
+        <div class="seg wide dkseg"><button data-tdkv="1">1</button><button data-tdkv="2">2</button><button data-tdkv="3">3</button><button data-tdkv="4">4</button><button data-tdkv="5">5</button><button data-tdkv="6">6</button><button data-tdkv="7">7</button><button data-tdkv="8">8</button><button data-tdkv="9">9</button><button data-tdkv="10">10</button></div>
       </div>
       <div data-tfor="doppel" class="t-row">
         <label>Lichter gleichzeitig</label>
@@ -270,6 +270,7 @@
   <div id="center">
     <div id="shape"></div>
   </div>
+  <div id="dkBars" hidden aria-hidden="true"><div class="dkrow"><span>Licht der Gruppe</span><b id="dkLt">0 / 0</b></div><div class="dkbar"><i id="dkLf"></i></div><div class="dkrow"><span id="dkDl">Dunkelheit</span><b id="dkDv">0 %</b></div><div class="dkbar"><i id="dkDf"></i></div></div>
   <div id="muStrip" hidden aria-hidden="true"></div>
   <p id="tag"></p>
   <p id="msg"></p>
@@ -472,8 +473,8 @@
         <div class="seg wide"><button data-mf="0">egal</button><button data-mf="1">fängt von vorn an</button></div>
       </div>
       <div data-for="dunkel" class="stack tight">
-        <label>Tempo der Dunkelheit (steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat)</label>
-        <div class="seg wide"><button data-dkv="1">ruhig</button><button data-dkv="2">mittel</button><button data-dkv="3">schnell</button></div>
+        <label>Tempo der Dunkelheit: 1 sehr ruhig bis 10 sehr schnell (steht still, solange ein Gerät mit „Zeit zählt nicht“ das Licht hat)</label>
+        <div class="seg wide dkseg"><button data-dkv="1">1</button><button data-dkv="2">2</button><button data-dkv="3">3</button><button data-dkv="4">4</button><button data-dkv="5">5</button><button data-dkv="6">6</button><button data-dkv="7">7</button><button data-dkv="8">8</button><button data-dkv="9">9</button><button data-dkv="10">10</button></div>
       </div>
       <div data-for="doppel" class="stack tight">
         <label>Lichter gleichzeitig</label>
@@ -501,13 +502,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261123-1259"></script>
-<script src="lib/qrcode.js?v=20261123-1259"></script>
-<script src="shared.js?v=20261123-1259"></script>
-<script src="net.js?v=20261123-1259"></script>
-<script src="board.js?v=20261123-1259"></script>
-<script src="player.js?v=20261123-1259"></script>
-<script src="teacher.js?v=20261123-1259"></script>
-<script src="main.js?v=20261123-1259"></script>
+<script src="lib/mqtt.min.js?v=20261125-1720"></script>
+<script src="lib/qrcode.js?v=20261125-1720"></script>
+<script src="shared.js?v=20261125-1720"></script>
+<script src="net.js?v=20261125-1720"></script>
+<script src="board.js?v=20261125-1720"></script>
+<script src="player.js?v=20261125-1720"></script>
+<script src="teacher.js?v=20261125-1720"></script>
+<script src="main.js?v=20261125-1720"></script>
 </body>
 </html>

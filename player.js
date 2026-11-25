@@ -73,7 +73,8 @@
     // Größe: Bei Tippen (springender Punkt) ist der Standard kleiner, sonst normal
     const eSize = () => cfg().sz || (st && st.gm === 'basal' ? 1.4 : (useRandom() ? 0.75 : 1));
     // Sperre nach Ankunft des Lichts: bei Basal kurz, sonst je nach Eingabeart
-    const lockMs = () => (st && st.gm === 'basal' && mode !== 'blick' ? 250 : MODES[mode].lock);
+    // Basal und Dunkelheit: kurze Sperre, damit nichts verzögert (die Dunkelheit läuft ja gegen die Zeit)
+    const lockMs = () => (st && (st.gm === 'basal' || st.gm === 'dunkel') && mode !== 'blick' ? 250 : MODES[mode].lock);
     // Staffel: Die Schüler wählen ihr Team selbst (wenn die Tafel das eingestellt hat)
     let pickTeam = '';   // 'a' | 'b' | ''
     let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
@@ -360,6 +361,25 @@
       // Wer gerade gezeigt wird, spielt den eigenen Ton auf seinem Gerät
       if (ph === 'show' && mu.cur === ID && mu.fk !== muFk) { muFk = mu.fk; if (sound && slot >= 0) LK.audio.note(slot, 0.4, 1.0); }
     }
+
+    // Dunkelheit: Stand der Gruppe und des Schattens auch auf dem Gerät
+    function dkUpdate() {
+      const el = $('dkBars');
+      const fresh = st && Date.now() - lastStateAt < 16000;
+      const on = !!(fresh && st.gm === 'dunkel' && st.ph === 'play' && !st.finale && slot >= 0);
+      el.hidden = !on;
+      if (!on) return;
+      const lvl = Math.max(0, Math.min(1, (st.dk || 0) + (st.dkr || 0) * ((Date.now() - lastStateAt) / 1000)));
+      const prog = Math.min(1, (st.chain || 0) / Math.max(1, st.goal || 1));
+      $('dkLt').textContent = `${st.chain || 0} / ${st.goal || 0}`;
+      $('dkLf').style.width = `${Math.round(prog * 100)}%`;
+      $('dkDv').textContent = `${Math.round(lvl * 100)} %`;
+      $('dkDf').style.width = `${Math.round(lvl * 100)}%`;
+      const danger = lvl > 0.75;
+      el.classList.toggle('danger', danger);
+      $('dkDl').textContent = danger ? 'Dunkelheit: gleich zu spät!' : (!st.dkr ? 'Dunkelheit steht still' : 'Dunkelheit');
+    }
+    setInterval(dkUpdate, 300);
 
     // Countdown 3, 2, 1 auf allen Geräten (ab dem Moment, in dem das Gerät "count" sieht)
     let cdAt = 0;
@@ -994,6 +1014,11 @@
     function confirm() {
       if (st && (st.gm === 'muster' || st.gm === 'geheim')) { tapAnywhere(); return; }
       if (holding && mode === 'taster' && st && performance.now() < lockUntil) {
+        // Dunkelheit: Ein Druck kurz vor Ende der Sperre geht nicht verloren, er wird gleich danach ausgeführt
+        if (st.gm === 'dunkel' && lockUntil - performance.now() < 400) {
+          setTimeout(() => { if (holding && st && performance.now() >= lockUntil) confirm(); }, Math.max(0, lockUntil - performance.now()) + 15);
+          return;
+        }
         // Zu früh gedrückt: kurz sagen, dass der Druck noch nicht zählt
         flashMsg = 'Einen Moment …';
         flashUntil = performance.now() + 500;
