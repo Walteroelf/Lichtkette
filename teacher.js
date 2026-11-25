@@ -6,12 +6,14 @@
 // - Namen der Geräte bleiben nur hier, sie gehen nie ins Netz und stehen nicht auf der Tafel.
 (function (LK) {
   const $ = (id) => document.getElementById(id);
-  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', regen: 'Sternenregen', sduell: 'Sterne gegeneinander', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const GN_LABEL = {
     klassik: 'Weitergaben pro Runde',
     basal: '',
     staffel: 'Weitergaben pro Team',
     extrem: 'Weitergaben pro Team',
+    regen: 'Sterne bis zum Sieg',
+    sduell: 'Sterne pro Team zum Sieg',
     doppel: 'Weitergaben insgesamt',
     schatz: 'Sterne pro Runde',
     zieh: 'Schritte Vorsprung zum Sieg',
@@ -203,6 +205,7 @@
     setting('tmt', 'mt', (v) => parseInt(v, 10));
     setting('tmf', 'mf', (v) => parseInt(v, 10));
     setting('tsb', 'sb', (v) => parseInt(v, 10));
+    setting('tfs', 'fs', (v) => parseInt(v, 10));
     // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
     document.querySelectorAll('[data-tgnstep]').forEach((b) => b.addEventListener('click', () => {
       if (!priv) return;
@@ -305,6 +308,7 @@
       mark('tmt', p.mt);
       mark('tmf', p.mf);
       mark('tsb', p.sb);
+      mark('tfs', p.fs);
       $('tGnVal').textContent = p.gn ? String(p.gn) : `Auto (${p.goal})`;
       mark('ttsel', p.tsel);
       $('tShake').hidden = !(LK.isTeamGm(p.gm) && p.ph === 'ready' && p.n > 0);

@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261125-1727">
+<meta name="build" content="20261125-1735">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -33,7 +33,7 @@
 <title>Lichtkette</title>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=20261125-1727">
+<link rel="stylesheet" href="style.css?v=20261125-1735">
 </head>
 <body>
 
@@ -86,6 +86,8 @@
         <button type="button" class="gcard" data-tgm="dunkel"><b>Die Dunkelheit</b><small>Ein Nebel kriecht heran. Gemeinsam das Gruppenlicht am Leben halten.</small></button>
         <button type="button" class="gcard" data-tgm="bild"><b>Lichtbild</b><small>Die Lichtspuren ergeben ein gemeinsames Bild zum Speichern.</small></button>
         <button type="button" class="gcard" data-tgm="schatz"><b>Schatz-Licht</b><small>Das Licht sammelt Sterne ein, die bei einzelnen Geräten liegen.</small></button>
+        <button type="button" class="gcard" data-tgm="regen"><b>Sternenregen</b><small>Alle sammeln Sterne, dazu wandert ein Licht.</small></button>
+        <button type="button" class="gcard" data-tgm="sduell"><b>Sterne gegeneinander</b><small>Zwei Teams sammeln Sterne in ihren Korb.</small></button>
         <button type="button" class="gcard" data-tgm="doppel"><b>Doppelte Lichter</b><small>Zwei oder drei Lichter gleichzeitig.</small></button>
       </div>
       <h3 class="ggroup">Team gegen Team</h3>
@@ -114,11 +116,15 @@
         <label>Modus</label>
         <div class="seg wide"><button data-ttm="0">Ruhig</button><button data-ttm="1">Zeitspiel</button></div>
       </div>
-      <div data-tfor="schatz" class="t-row">
+      <div data-tfor="regen sduell" class="t-row">
+        <label>Sterne pro Gerät und Päckchen</label>
+        <div class="seg wide"><button data-tfs="0">bunt gemischt (1 bis 3)</button><button data-tfs="1">1</button><button data-tfs="2">2</button><button data-tfs="3">3</button></div>
+      </div>
+      <div data-tfor="schatz regen sduell" class="t-row">
         <label>Sterne einsammeln am Touch-Gerät</label>
         <div class="seg wide"><button data-tsb="0">antippen</button><button data-tsb="1">in den Korb ziehen</button></div>
       </div>
-      <div data-tfor="staffel zieh extrem" class="t-row">
+      <div data-tfor="staffel zieh extrem sduell" class="t-row">
         <label>Schwierigkeit: Tipps pro Weitergabe (am Touch-Gerät springt das Symbol nach jedem Treffer)</label>
         <div class="seg wide"><button data-tmt="1">1</button><button data-tmt="2">2</button><button data-tmt="3">3</button></div>
         <label>Tipp daneben</label>
@@ -147,7 +153,7 @@
         <label>Strafpause bei Fehltipp (nur Geräte mit „mit Strafe“)</label>
         <div class="seg wide"><button data-tpen="0">aus</button><button data-tpen="2">2 s</button><button data-tpen="4">4 s</button></div>
       </div>
-      <div class="t-row" data-tfor="klassik staffel zieh extrem doppel schatz dunkel muster bild geheim">
+      <div class="t-row" data-tfor="klassik staffel zieh extrem regen sduell doppel schatz dunkel muster bild geheim">
         <label id="tGnLabel">Weitergaben pro Runde</label>
         <div class="stepper"><button id="tGnAuto" class="btn" type="button">Auto</button><button class="btn" type="button" data-tgnstep="-5" aria-label="5 weniger">−5</button><span id="tGnVal">Auto</span><button class="btn" type="button" data-tgnstep="5" aria-label="5 mehr">+5</button></div>
       </div>
@@ -394,6 +400,7 @@
         <button type="button" class="gcard" data-gm="dunkel" title="Ein Nebel kriecht heran. Gemeinsam das Gruppenlicht am Leben halten."><b>Die Dunkelheit</b></button>
         <button type="button" class="gcard" data-gm="bild" title="Die Lichtspuren ergeben ein gemeinsames Bild zum Speichern."><b>Lichtbild</b></button>
         <button type="button" class="gcard" data-gm="schatz" title="Das Licht sammelt Sterne ein, die bei einzelnen Geräten liegen."><b>Schatz-Licht</b></button>
+        <button type="button" class="gcard" data-gm="regen" title="Alle sammeln gleichzeitig Sterne, dazu wandert ein Licht mit Bonus-Stern."><b>Sternenregen</b></button>
         <button type="button" class="gcard" data-gm="doppel" title="Zwei oder drei Lichter gleichzeitig."><b>Doppelte Lichter</b></button>
       </div>
       <h3 class="ggroup">Team gegen Team</h3>
@@ -401,6 +408,7 @@
         <button type="button" class="gcard" data-gm="staffel" title="Zwei Teams, wer zuerst die Weitergaben schafft, gewinnt."><b>Staffel</b></button>
         <button type="button" class="gcard" data-gm="zieh" title="Zwei Teams ziehen an einem Seil. Aufholen ist möglich."><b>Tauziehen</b></button>
         <button type="button" class="gcard" data-gm="extrem" title="Staffel mit Spur: erst eine Spur nachziehen, dann weitergeben. Die Stufe passt sich an."><b>Lichtkette extrem</b></button>
+        <button type="button" class="gcard" data-gm="sduell" title="Zwei Teams sammeln Sterne in ihren Korb. Wer zuerst genug hat, gewinnt."><b>Sterne gegeneinander</b></button>
       </div>
       <h3 class="ggroup">Knobeln</h3>
       <div class="gcards">
@@ -454,11 +462,15 @@
         <label>Stufe passt sich jedem Gerät an (schnell = schwerer, langsam = leichter)</label>
         <div class="seg wide"><button data-xa="1">automatisch</button><button data-xa="0">bleibt gleich</button></div>
       </div>
-      <div data-for="schatz" class="stack tight">
+      <div data-for="regen sduell" class="stack tight">
+        <label>Sterne pro Gerät und Päckchen</label>
+        <div class="seg wide"><button data-fs="0">bunt gemischt (1 bis 3)</button><button data-fs="1">1</button><button data-fs="2">2</button><button data-fs="3">3</button></div>
+      </div>
+      <div data-for="schatz regen sduell" class="stack tight">
         <label>Sterne einsammeln am Touch-Gerät (der Korb wechselt nach jedem Stern den Platz)</label>
         <div class="seg wide"><button data-sb="0">antippen</button><button data-sb="1">in den Korb ziehen</button></div>
       </div>
-      <div data-for="staffel zieh extrem" class="stack tight">
+      <div data-for="staffel zieh extrem sduell" class="stack tight">
         <label>Serie (Siegpunkte über mehrere Runden)</label>
         <div class="seg wide"><button data-ser="0">aus</button><button data-ser="2">Best of 3</button><button data-ser="3">Best of 5</button></div>
         <label>Teams</label>
@@ -486,7 +498,7 @@
         <label>Stern springt weiter nach (nur Geräte mit „Stern extra antippen“)</label>
         <div class="seg wide"><button data-sj="0">bleibt</button><button data-sj="6">6 s</button><button data-sj="4">4 s</button><button data-sj="3">3 s</button></div>
       </div>
-      <div data-for="klassik staffel zieh extrem doppel schatz dunkel muster bild geheim" class="stack tight">
+      <div data-for="klassik staffel zieh extrem regen sduell doppel schatz dunkel muster bild geheim" class="stack tight">
       <label id="gnLabel">Weitergaben pro Runde</label>
       <div class="stepper"><button id="gnAuto" class="btn" type="button">Auto</button><button class="btn" type="button" data-gnstep="-5" aria-label="5 weniger">−5</button><span id="gnVal">Auto</span><button class="btn" type="button" data-gnstep="5" aria-label="5 mehr">+5</button></div>
       </div>
@@ -502,13 +514,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261125-1727"></script>
-<script src="lib/qrcode.js?v=20261125-1727"></script>
-<script src="shared.js?v=20261125-1727"></script>
-<script src="net.js?v=20261125-1727"></script>
-<script src="board.js?v=20261125-1727"></script>
-<script src="player.js?v=20261125-1727"></script>
-<script src="teacher.js?v=20261125-1727"></script>
-<script src="main.js?v=20261125-1727"></script>
+<script src="lib/mqtt.min.js?v=20261125-1735"></script>
+<script src="lib/qrcode.js?v=20261125-1735"></script>
+<script src="shared.js?v=20261125-1735"></script>
+<script src="net.js?v=20261125-1735"></script>
+<script src="board.js?v=20261125-1735"></script>
+<script src="player.js?v=20261125-1735"></script>
+<script src="teacher.js?v=20261125-1735"></script>
+<script src="main.js?v=20261125-1735"></script>
 </body>
 </html>

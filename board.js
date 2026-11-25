@@ -20,8 +20,8 @@
   const gnFix = (gm, v) => (v === 0 ? 0 : gm === 'zieh' ? Math.min(20, Math.max(1, v)) : Math.min(100, Math.max(5, Math.round(v / 5) * 5)));
   const NL_OPTIONS = [2, 3];
   const PEN_OPTIONS = [0, 2, 4]; // Strafpause in Sekunden bei einem Fehltipp (0 = aus)
-  const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim', 'extrem'];
-  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
+  const GAMES = ['klassik', 'basal', 'staffel', 'zieh', 'doppel', 'schatz', 'dunkel', 'muster', 'bild', 'geheim', 'extrem', 'regen', 'sduell'];
+  const TITLES = { klassik: 'Lichtkette', basal: 'Basal', staffel: 'Staffel', zieh: 'Tauziehen', dunkel: 'Die Dunkelheit', muster: 'Muster nachspielen', bild: 'Lichtbild', geheim: 'Geheime Reihenfolge', extrem: 'Lichtkette extrem', regen: 'Sternenregen', sduell: 'Sterne gegeneinander', doppel: 'Doppelte Lichter', schatz: 'Schatz-Licht' };
   const INFO = {
     basal: 'Ganz einfach: Das Licht wandert ohne Zeitdruck und ohne Ziel von Gerät zu Gerät. Jede Weitergabe klingt. Große feste Tippfläche.',
     klassik: 'Ein Licht wandert zufällig von Gerät zu Gerät. Wahlweise als Zeitspiel mit Bestzeit.',
@@ -33,6 +33,8 @@
     muster: 'Die Tafel zeigt eine Reihenfolge von Geräten. Die Gruppe spielt sie nach. Jede Runde wird sie länger.',
     bild: 'Jede Weitergabe zieht eine Lichtlinie. Am Ende steht ein gemeinsames Bild, das man speichern kann.',
     geheim: 'Das Licht geht in einer geheimen Reihenfolge weiter. Die Gruppe findet heraus, wer als Nächstes dran ist.',
+    regen: 'Alle sammeln gleichzeitig ihre Sterne, dazu wandert ein Licht. Jede Weitergabe bringt einen Bonus-Stern.',
+    sduell: 'Zwei Teams sammeln Sterne in ihren Korb. Wer zuerst genug hat, gewinnt.',
     extrem: 'Staffel mit Spur: Wer das Licht hat, zieht erst einen Punkt eine Spur entlang. Dann leuchtet das Symbol auf und das Licht geht weiter. Die Stufe passt sich jedem Kind an.'
   };
   const GN_LABEL = {
@@ -47,6 +49,8 @@
     bild: 'Weitergaben pro Bild',
     geheim: 'Stationen (höchstens so viele wie Geräte)',
     extrem: 'Weitergaben pro Team',
+    regen: 'Sterne bis zum Sieg',
+    sduell: 'Sterne pro Team zum Sieg',
   };
   const SANS = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -111,7 +115,7 @@
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
-      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
+      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), fs: readNum('lk_fs', [0, 1, 2, 3], 0), sr: {}, mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -216,6 +220,7 @@
       delete st.team[id];
       Object.keys(bags).forEach((k) => { bags[k] = bags[k].filter((x) => x !== id); });
       st.stars = st.stars.filter((x) => x !== id);
+      delete st.sr[id];
       if (st.ph === 'play' && !st.finale) {
         if (st.gm === 'muster' && st.mu && st.mu.sq.includes(id)) muStart(st.mu.lv, false);
         if (st.gm === 'geheim' && geRoute.includes(id)) geBegin();
@@ -260,6 +265,7 @@
     }
 
     function desiredLights() {
+      if (st.gm === 'sduell') return 0;
       if (LK.isTeamGm(st.gm)) return 2;
       if (st.gm === 'muster') return 0;
       if (st.gm === 'doppel') return Math.max(1, Math.min(st.nl, aliveIds().length - 1));
@@ -289,11 +295,11 @@
       if (st.gm === 'schatz' && next && st.stars.includes(next)) { l.n = starsPerTreasure(); l.r = l.n; }
       clearTimeout(autoTimers[li]);
       if (next && !isTm() && !LK.isTeamGm(st.gm) && st.gm !== 'geheim' && !st.paused) {
-        const w = (peers[next] && peers[next].w) || 0;
+        const w = (peers[next] && peers[next].w) || (st.gm === 'regen' ? 10 : 0); // Sternenregen: Das Licht wandert nach 10 Sekunden von selbst weiter
         if (w > 0) {
           l.a = w * 1000;
           autoTimers[li] = setTimeout(() => {
-            if (isHost === true && st.lights[li] && st.lights[li].h === next) reqPass(li);
+            if (isHost === true && st.lights[li] && st.lights[li].h === next) reqPass(li, false, true);
           }, l.a);
         }
       }
@@ -311,6 +317,7 @@
         if (l.h && st.players[l.h] === undefined) { l.p = l.h; l.h = null; }
         if (!l.h && st.gm !== 'geheim') { const n = pickFor(i); if (n) setLight(i, n); }
       });
+      srEnsure();
       st.seq++;
       updateClockRun();
     }
@@ -335,6 +342,50 @@
       ensureStars();
     }
 
+    // Sternenregen und Sterne gegeneinander: Jedes Gerät hat seine eigenen Sterne (Päckchen), unabhängig vom Licht.
+    // st.sr[id] = { n: Sterne im Päckchen (0 = gerade leer), k: Nummer des Päckchens, c: schon im Korb, t: insgesamt eingesammelt }
+    let srKey = 0;
+    let srTimers = {};
+    const freeMode = () => st.gm === 'regen' || st.gm === 'sduell';
+    function srClear() { Object.values(srTimers).forEach(clearTimeout); srTimers = {}; }
+    function srNew(id) {
+      const old = st.sr[id];
+      const n = st.fs > 0 ? st.fs : 1 + Math.floor(Math.random() * 3);
+      st.sr[id] = { n, k: ++srKey, c: 0, t: old ? old.t || 0 : 0 };
+    }
+    function srEnsure() {
+      if (!freeMode() || st.ph !== 'play' || st.finale) return;
+      aliveIds().forEach((id) => { if (!st.sr[id]) srNew(id); });
+      Object.keys(st.sr).forEach((id) => { if (st.players[id] === undefined) delete st.sr[id]; });
+    }
+    function srTake(id, b, c) {
+      if (!freeMode() || st.ph !== 'play' || st.finale || finishing || st.paused) return false;
+      const o = st.sr[id];
+      if (!o || o.n <= 0 || o.k !== b || typeof c !== 'number') return false;
+      c = Math.min(o.n, Math.floor(c));
+      if (c <= o.c) return false;
+      const d = c - o.c;
+      o.c = c;
+      o.t += d;
+      if (st.gm === 'regen') st.sc += d; else st.tc[st.team[id] === 1 ? 1 : 0] += d;
+      if (o.c >= o.n) {
+        // Päckchen leer: nach kurzer Zeit kommt ein neues
+        o.n = 0; o.c = 0;
+        clearTimeout(srTimers[id]);
+        srTimers[id] = setTimeout(() => {
+          if (isHost === true && st.sr[id] && st.sr[id].n === 0 && st.ph === 'play' && !st.finale) { srNew(id); st.seq++; publish(); }
+        }, 1200 + Math.random() * 1600);
+      }
+      if (st.gm === 'regen' && st.sc >= st.goal) { startFinale(-1); return true; }
+      if (st.gm === 'sduell') {
+        const w = st.tc[0] >= st.goal && st.tc[0] >= st.tc[1] ? 0 : (st.tc[1] >= st.goal ? 1 : -1);
+        if (w >= 0) { startFinale(w); return true; }
+      }
+      st.seq++;
+      publish();
+      return true;
+    }
+
     // Wie viele Sterne hat ein Schatz gerade? Fest 1, 2, 3, 5, oder steigend: alle 4 eingesammelten Sterne einer mehr (höchstens 5)
     function starsPerTreasure() {
       if (st.sp > 0) return st.sp;
@@ -354,16 +405,22 @@
     }
 
     // collect: Das Gerät meldet, dass es auch den Stern angetippt hat (Schatz-Licht). Ohne Meldung bleibt der Stern liegen.
-    function reqPass(li, collect) {
-      passLight(li, !!collect);
+    function reqPass(li, collect, auto) {
+      passLight(li, !!collect, !!auto);
     }
 
-    function passLight(li, collect) {
+    function passLight(li, collect, auto) {
       if (st.finale || st.ph !== 'play' || finishing || st.paused) return;
       const l = st.lights[li];
       if (!l || !l.h || l.z) return;
       st.chain++;
       if (LK.isTeamGm(st.gm)) st.tc[li]++;
+      // Sternenregen: Wer das Licht weitergibt, bringt einen Bonus-Stern in den Korb. Wandert es nur von selbst weiter, gibt es nichts.
+      if (st.gm === 'regen' && !auto) {
+        const o = st.sr[l.h] || (st.sr[l.h] = { n: 0, k: ++srKey, c: 0, t: 0 });
+        o.t = (o.t || 0) + 1;
+        st.sc++;
+      }
       // Schatz-Licht, "ein Tipp reicht": Beim Weitergeben werden alle noch offenen Sterne dieses Geräts eingesammelt.
       // Wer die Sterne einzeln antippt, hat sie schon vorher gemeldet. Läuft nur die Zeit ab, bleibt der Rest liegen.
       if (st.gm === 'schatz' && collect && l.r > 0) {
@@ -371,7 +428,7 @@
         l.r = 0;
         collectStar(l.h);
       }
-      const done = st.gm === 'basal' ? false : st.gm === 'zieh' ? Math.abs(st.tc[0] - st.tc[1]) >= st.goal
+      const done = st.gm === 'basal' ? false : st.gm === 'regen' ? st.sc >= st.goal : st.gm === 'zieh' ? Math.abs(st.tc[0] - st.tc[1]) >= st.goal
         : (LK.isTeamGm(st.gm) ? st.tc[li] >= st.goal : (st.gm === 'schatz' ? st.sc >= st.goal : st.chain >= st.goal));
       if (done) { startFinale(li); return; }
       setLight(li, pickFor(li));
@@ -387,6 +444,8 @@
         case 'doppel': return 12;
         case 'staffel': return 12;
         case 'extrem': return 8;
+        case 'regen': return 20;
+        case 'sduell': return 15;
         case 'zieh': return 10;
         case 'dunkel': return 20;
         case 'muster': return 6;
@@ -590,6 +649,8 @@
     function resetRound(bump, afterFinale, keepSeries) {
       clearTimeout(finTimer);
       clearTimeout(cdTimer);
+      srClear();
+      st.sr = {};
       if (!afterFinale) passStats = {};
       st.lights.forEach((l, i) => clearTimeout(autoTimers[i]));
       finishing = false;
@@ -688,6 +749,7 @@
       LK.store.set('lk_xl', String(st.xl));
       LK.store.set('lk_xa', String(st.xa));
       LK.store.set('lk_sb', String(st.sb));
+      LK.store.set('lk_fs', String(st.fs));
       LK.store.set('lk_mf', String(st.mf));
       LK.store.set('lk_nl', String(st.nl));
       LK.store.set('lk_pen', String(st.pen));
@@ -923,6 +985,7 @@
           if ([1, 2, 3].includes(p.mt)) patch.mt = p.mt;
           if ([0, 1].includes(p.mf)) patch.mf = p.mf;
           if ([0, 1].includes(p.sb)) patch.sb = p.sb;
+          if ([0, 1, 2, 3].includes(p.fs)) patch.fs = p.fs;
           if ([1, 2, 3, 4, 5, 6].includes(p.xl)) patch.xl = p.xl;
           if ([0, 1].includes(p.xa)) patch.xa = p.xa;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
@@ -1051,6 +1114,7 @@
     // Schatz-Licht: Ein Gerät meldet, wie viele Sterne es bei diesem Licht schon angetippt hat (Gesamtzahl, darum sind
     // wiederholte oder verspätete Meldungen harmlos)
     net.on('star', (m) => {
+      if (m.g === 1) { if (isHost === true && typeof m.id === 'string' && m.epoch === st.epoch) srTake(m.id, m.b, m.c); return; }
       if (isHost !== true || st.finale || st.ph !== 'play' || finishing || st.paused || st.gm !== 'schatz') return;
       const li = st.lights.findIndex((l) => l.h === m.id);
       if (li < 0 || m.epoch !== st.epoch || m.s !== st.lights[li].s || typeof m.c !== 'number') return;
@@ -1122,7 +1186,7 @@
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
       ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1, ser: 0, sw: [0, 0], sd: 0, tsel: 0,
       stars: [], sc: 0, team: {}, paused: false,
-      lost: 0, dk: 0, dkr: 0, dkAt: 0, dkShow: 0.12, mu: null, ge: null, zp: 0,
+      lost: 0, sr: {}, dk: 0, dkr: 0, dkAt: 0, dkShow: 0.12, mu: null, ge: null, zp: 0,
     };
     const stars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + 0.3, p: Math.random() * TAU }));
 
@@ -1258,7 +1322,15 @@
         if (view.ge && view.ge.rp && view.ge.cur && (!pge || pge.fk !== view.ge.fk)) flashNode(view.ge.cur, false);
       }
       view.stars = s.stars || [];
-      if (s.sc > view.sc && !first) {
+      if ((s.gm === 'regen' || s.gm === 'sduell') && !first) {
+        Object.keys(s.sr || {}).forEach((id) => {
+          const nt = (s.sr[id] && s.sr[id].t) || 0;
+          const ot = (view.sr && view.sr[id] && view.sr[id].t) || 0;
+          for (let i = 0; i < Math.min(3, nt - ot); i++) starBurst(id, s.gm === 'sduell' ? ((s.team && s.team[id] === 1) ? 1 : 0) : -1);
+        });
+      }
+      view.sr = s.sr || {};
+      if (s.gm === 'schatz' && s.sc > view.sc && !first) {
         // Stern eingesammelt: Funkeln bei dem Gerät, das ihn angetippt hat (das Licht war gerade dort)
         // Jeder Stern zählt: Funkeln bei dem Gerät, das ihn angetippt hat. Wurde dabei das Licht weitergegeben, war es das vorherige.
         const l = view.lights[0];
@@ -1370,11 +1442,11 @@
     // Schatz-Licht: goldene Wellen und zwei helle Töne, wenn ein Stern eingesammelt wurde
     let starFly = [];
     let basketPop = 0;
-    function starBurst(id) {
+    function starBurst(id, tm) {
       const n = nodes[id];
       if (!n) return;
       const now = performance.now();
-      starFly.push({ x: n.x, y: n.y, t0: now, ph: Math.random() * 2 - 1 });
+      starFly.push({ x: n.x, y: n.y, t0: now, ph: Math.random() * 2 - 1, tm: tm === undefined ? -1 : tm });
       ripples.push({ x: n.x, y: n.y, t0: now, color: '#fde047' });
       ripples.push({ x: n.x, y: n.y, t0: now + 140, color: '#fde047' });
       if (soundOn) { LK.audio.note(n.slot, 0.4, 1.4, 0, 1); LK.audio.note(n.slot, 0.25, 1.6, 0.12, 2); }
@@ -1537,7 +1609,7 @@
 
     // Schatz-Licht: Der Sammelkorb in der Mitte. Die Sterne fliegen von den Geräten hinein, der Haufen wächst.
     const frac = (x) => x - Math.floor(x);
-    function drawBasket(cx, cy, hr, now) {
+    function drawBasketAt(cx, cy, hr, now, count, tm, tint, label) {
       ctx.globalCompositeOperation = 'source-over';
       const bx = cx;
       const by = cy + hr * 0.2;
@@ -1550,8 +1622,8 @@
       ctx.fillStyle = 'rgba(40,30,10,0.9)';
       ctx.beginPath(); ctx.ellipse(bx, top, mw / 2, h * 0.16, 0, 0, TAU); ctx.fill();
       // Sternenhaufen (Sterne, die noch fliegen, zählen noch nicht)
-      const air = starFly.length;
-      const cnt = Math.max(0, Math.min(view.sc, 40) - air);
+      const air = starFly.filter((f) => f.tm === tm).length;
+      const cnt = Math.max(0, Math.min(count, 40) - air);
       for (let i = 0; i < cnt; i++) {
         const t = i / 40;
         const x = bx + (frac(Math.sin((i + 1) * 12.9898) * 43758.5453) - 0.5) * mw * 0.74 * (1 - 0.45 * t);
@@ -1573,11 +1645,12 @@
       for (let k = -2; k <= 2; k++) {
         ctx.beginPath(); ctx.moveTo(bx + (k * mw) / 6, top); ctx.lineTo(bx + (k * bwid) / 6, by + h / 2); ctx.stroke();
       }
-      ctx.strokeStyle = '#d4a05a'; ctx.lineWidth = Math.max(4, hr * 0.07);
+      ctx.strokeStyle = tint || '#d4a05a'; ctx.lineWidth = Math.max(4, hr * 0.07);
       ctx.beginPath(); ctx.ellipse(bx, top, mw / 2, h * 0.16, 0, 0, TAU); ctx.stroke();
       ctx.restore();
       // Fliegende Sterne
       starFly = starFly.filter((f) => {
+        if (f.tm !== tm) return true;
         const k = (now - f.t0) / 800;
         if (k >= 1) { basketPop = now; return false; }
         const e = k * k * (3 - 2 * k);
@@ -1594,10 +1667,18 @@
         ctx.fill();
         return true;
       });
-      ctx.fillStyle = 'rgba(253,224,71,0.95)';
+      ctx.fillStyle = tint || 'rgba(253,224,71,0.95)';
       ctx.font = `700 ${Math.round(hr * 0.34)}px ${SANS}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(`★ ${view.sc} / ${view.goal}`, cx, by + h / 2 + hr * 0.4);
+      ctx.fillText(label, cx, by + h / 2 + hr * 0.4);
+    }
+
+    function drawBasket(cx, cy, hr, now) {
+      if (view.gm === 'sduell') {
+        [0, 1].forEach((t) => drawBasketAt(cx + (t ? 1 : -1) * hr * 1.35, cy, hr * 0.72, now, view.tc[t] || 0, t, LK.TEAM_COLORS[t], `★ ${view.tc[t] || 0} / ${view.goal}`));
+      } else {
+        drawBasketAt(cx, cy, hr, now, view.sc, -1, null, `★ ${view.sc} / ${view.goal}`);
+      }
     }
 
     function drawLevels() {
@@ -1896,6 +1977,16 @@
           ctx.arc(n.x, n.y, r * 1.55, -Math.PI / 2, -Math.PI / 2 + TAU * left);
           ctx.stroke();
         }
+        // Sternenregen / Sterne gegeneinander: die Sterne, die bei diesem Gerät noch zu holen sind
+        if ((view.gm === 'regen' || view.gm === 'sduell') && view.sr && view.sr[id] && view.sr[id].n > 0) {
+          const rem = view.sr[id].n - (view.sr[id].c || 0);
+          for (let q = 0; q < rem; q++) {
+            const bob = Math.sin(now / 500 + n.slot + q) * 3;
+            ctx.fillStyle = `rgba(253,224,71,${0.9 * fade})`;
+            starPath(n.x + r * (1.5 + 1.0 * q), n.y - r * 1.5 + bob, r * 0.55);
+            ctx.fill();
+          }
+        }
         // Stern, der bei diesem Gerät liegt
         if (view.gm === 'schatz' && view.stars.includes(id)) {
           const bob = Math.sin(now / 500 + n.slot) * 3;
@@ -2090,7 +2181,7 @@
       } else if (fin) {
         ctx.fillStyle = `rgba(235,238,255,${finA})`;
         ctx.font = `600 ${Math.round(hr * 0.42)}px ${SANS}`;
-        ctx.fillText(gm === 'schatz' ? 'Alle Sterne gesammelt' : (gm === 'muster' ? 'Alle Muster geschafft' : (gm === 'geheim' ? 'Die Reihenfolge ist geknackt' : 'Runde geschafft')), cx, cy);
+        ctx.fillText((gm === 'schatz' || gm === 'regen') ? 'Alle Sterne gesammelt' : (gm === 'muster' ? 'Alle Muster geschafft' : (gm === 'geheim' ? 'Die Reihenfolge ist geknackt' : 'Runde geschafft')), cx, cy);
       } else if (view.ph === 'count') {
         const left = Math.max(0, view.cd - (now - view.phAt));
         const nn = Math.max(1, Math.ceil(left / 1000));
@@ -2107,7 +2198,7 @@
         ctx.fillText(tm ? 'Zeitspiel' : TITLES[gm], cx, cy - hr * 0.12);
         ctx.fillStyle = 'rgba(200,205,240,0.7)';
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
-        ctx.fillText(`${view.goalN || ''} ${({ staffel: 'Weitergaben pro Team', zieh: 'Schritte Vorsprung', extrem: 'Weitergaben pro Team', schatz: 'Sterne', muster: 'Runden', geheim: 'Stationen' })[gm] || 'Weitergaben'}`, cx, cy + hr * 0.3);
+        ctx.fillText(`${view.goalN || ''} ${({ staffel: 'Weitergaben pro Team', zieh: 'Schritte Vorsprung', extrem: 'Weitergaben pro Team', regen: 'Sterne bis zum Sieg', sduell: 'Sterne pro Team', schatz: 'Sterne', muster: 'Runden', geheim: 'Stationen' })[gm] || 'Weitergaben'}`, cx, cy + hr * 0.3);
         if (LK.isTeamGm(gm)) {
           const cnt = [0, 0];
           Object.keys(view.team || {}).forEach((id) => { if (nodes[id] && !nodes[id].dying) cnt[view.team[id] ? 1 : 0]++; });
@@ -2122,7 +2213,7 @@
             ctx.fillText(`Team ${small.map((t) => `${LK.TEAM_NAMES[t]} (${cnt[t]})`).join(' und ')}: mindestens 3 Geräte sind besser`, cx, cy + hr * (view.tsel === 1 ? 1.05 : 0.7));
           }
         }
-      } else if (gm === 'schatz') {
+      } else if (gm === 'schatz' || gm === 'regen' || gm === 'sduell') {
         drawBasket(cx, cy, hr, now);
       } else if (gm === 'basal') {
         if (view.chain > 0) {
@@ -2289,6 +2380,7 @@
       mark('mt', st.mt);
       mark('mf', st.mf);
       mark('sb', st.sb);
+      mark('fs', st.fs);
       mark('xl', st.xl);
       mark('xa', st.xa);
       $('gnVal').textContent = st.gn ? String(st.gn) : `Auto (${st.goal})`;
@@ -2410,6 +2502,7 @@
     onSetting('mt', 'mt', (v) => parseInt(v, 10));
     onSetting('mf', 'mf', (v) => parseInt(v, 10));
     onSetting('sb', 'sb', (v) => parseInt(v, 10));
+    onSetting('fs', 'fs', (v) => parseInt(v, 10));
     onSetting('xl', 'xl', (v) => parseInt(v, 10));
     onSetting('xa', 'xa', (v) => parseInt(v, 10));
     // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100

@@ -83,7 +83,12 @@
     const curPick = () => pickTeam || (st && st.team && st.team[ID] === 1 ? 'b' : 'a');
     const starHere = () => !!(st && st.gm === 'schatz' && st.stars && st.stars.includes(ID));
     // Der Stern wird automatisch eingesammelt, wenn das Gerät es so eingestellt hat (die Tafel kann das vorgeben)
+    // Sternenregen und Sterne gegeneinander: eigene Sterne (Päckchen) bei jedem Gerät, unabhängig vom Licht
+    const freeStars = () => !!(st && (st.gm === 'regen' || st.gm === 'sduell'));
+    const myBatch = () => { if (!freeStars() || !st.sr) return null; const b = st.sr[ID]; return b && b.n > 0 && (b.c || 0) < b.n ? b : null; };
+    let fsK = -1;
     const starAuto = () => {
+      if (freeStars()) return false;
       const c = cfg();
       if (c.sa !== undefined) return c.sa === 1;
       if (starPref) return starPref === 'auto';
@@ -91,12 +96,12 @@
     };
     const myLight = () => (st ? st.lights.find((l) => l.h === ID) : null);
     // Liegt bei diesem Gerät gerade ein Schatz, und aus wie vielen Sternen besteht er? (Die Tafel legt das beim Eintreffen des Lichts fest.)
-    const treasureHere = () => { const l = myLight(); return !!(l && st.gm === 'schatz' && l.n > 0); };
-    const starTotal = () => { const l = myLight(); return l && l.n > 0 ? l.n : 1; };
-    const starsDone = () => starCount >= starTotal();
+    const treasureHere = () => { if (freeStars()) return !!myBatch(); const l = myLight(); return !!(l && st.gm === 'schatz' && l.n > 0); };
+    const starTotal = () => { if (freeStars()) { const b = myBatch(); return b ? b.n : 1; } const l = myLight(); return l && l.n > 0 ? l.n : 1; };
+    const starsDone = () => (freeStars() ? (!myBatch() || starCount >= myBatch().n) : starCount >= starTotal());
     const starTapNeeded = () => treasureHere() && !starAuto();
     // Schatz-Licht, schwerer: Am Touch-Gerät muss der Stern in einen Korb gezogen werden, der den Platz wechselt
-    const dragMode = () => !!(st && st.sb === 1 && mode === 'touch' && st.gm === 'schatz' && starTapNeeded());
+    const dragMode = () => !!(st && st.sb === 1 && mode === 'touch' && (st.gm === 'schatz' || freeStars()) && starTapNeeded());
 
     const scrMode = $('scr-mode');
     const scrPlay = $('scr-play');
@@ -861,12 +866,9 @@
       if (iHold && !holding) {
         holding = true;
         lightTapped = false;
-        starCount = 0;
+        if (!freeStars()) { starCount = 0; clearTimeout(starTimer); lastStarPos = null; $('star').dataset.placed = ''; }
         mtHit = 0;
         holdGated = false;
-        clearTimeout(starTimer);
-        lastStarPos = null;
-        $('star').dataset.placed = '';
         updateTapVisuals();
         lockUntil = performance.now() + (retryHold ? 0 : lockMs());
         const hold = $('hold');
@@ -882,8 +884,7 @@
         holding = false;
         traceEnd();
         lightTapped = false;
-        starCount = 0;
-        clearTimeout(starTimer);
+        if (!freeStars()) { starCount = 0; clearTimeout(starTimer); }
         updateTapVisuals();
       }
       // Mit der iPad-Schaltersteuerung bleibt das große Ziel immer stehen (unsichtbar), damit die Abtastung dort ruht und nicht ins Leere läuft
@@ -891,17 +892,24 @@
       if (!iHold) $('hold').hidden = !(tg.target || swCtlNow);
       $('hold').setAttribute('aria-label', iHold ? 'Licht weitergeben' : 'Wartet auf das Licht');
 
+      // Sternenregen / Sterne gegeneinander: neues Päckchen, neuer Zähler
+      if (freeStars() && st.sr && st.sr[ID]) {
+        const bb = st.sr[ID];
+        if (bb.k !== fsK) { fsK = bb.k; starCount = bb.c || 0; $('star').dataset.placed = ''; lastStarPos = null; }
+        else if ((bb.c || 0) > starCount) starCount = bb.c;
+      }
+      const freeOn = !!(freeStars() && fresh && slot >= 0 && st.ph === 'play' && !st.finale && !st.paused && myBatch() && !starsDone());
       // Schatz-Licht: Liegt bei diesem Gerät ein Schatz, erscheint ein gelber Stern zum Antippen (immer nur einer)
-      const showStar = !!(iHold && holding && starTapNeeded() && !starsDone());
+      const showStar = freeStars() ? freeOn : !!(iHold && holding && starTapNeeded() && !starsDone());
       // "Ein Tipp reicht": Der Stern wird mit eingesammelt. Damit man sieht, dass bei diesem Gerät ein Schatz liegt,
       // erscheint trotzdem ein gelber Stern, aber ohne Funktion (er reagiert nicht auf Tippen und löst nichts aus).
-      const showStarAuto = !!(iHold && holding && treasureHere() && starAuto());
+      const showStarAuto = !freeStars() && !!(iHold && holding && treasureHere() && starAuto());
       $('star').hidden = !(showStar || showStarAuto);
       if (!showStar || !dragMode()) $('basket').hidden = true;
       else if ($('basket').hidden) { $('star').dataset.placed = ''; }
       $('star').classList.toggle('auto', showStarAuto);
       // Schatz-Licht: Das Symbol zum Weitergeben erscheint erst, wenn alle Sterne dieses Geräts eingesammelt sind
-      const gate = !!(iHold && holding && mode !== 'taster' && starTapNeeded() && !starsDone());
+      const gate = !!(!freeStars() && iHold && holding && mode !== 'taster' && starTapNeeded() && !starsDone());
       if (iHold && holding) {
         $('hold').hidden = gate;
         if (gate) holdGated = true;
@@ -910,7 +918,7 @@
       if (showStar && !$('star').dataset.placed) { placeStar(); armStarJump(); }
       else if (showStarAuto && !$('star').dataset.placed) placeStar();
       // Wird der Stern jetzt automatisch eingesammelt (Einstellung geändert) und das Licht war schon getippt: weitergeben
-      if (iHold && holding && lightTapped && treasureHere() && starAuto() && light && !light.z && !st.paused) finishPass(light, true);
+      if (!freeStars() && iHold && holding && lightTapped && treasureHere() && starAuto() && light && !light.z && !st.paused) finishPass(light, true);
 
       const pa = pickActive();
       $('teamPick').hidden = !pa;
@@ -941,6 +949,8 @@
       else if (iHold && tr && !tr.done) msg = tr.ribbon ? (tr.lvl >= 6 ? 'Finde die richtige Reihenfolge' : 'Welches Band ist zuerst dran?') : 'Zieh den Punkt die Spur entlang';
       else if (iHold && tr && tr.done) msg = 'Geschafft!';
       else if (iHold) msg = starTapNeeded() ? starMsg() : (treasureHere() ? autoStarMsg(light) : ((clockGame && eNoTime()) ? 'Die Uhr steht. Du hast Zeit.' : hintText()));
+      else if (freeStars() && myBatch() && !iHold) msg = `Sammle deine Sterne ★ (${Math.min(starCount + 1, starTotal())} von ${starTotal()})`;
+      else if (freeStars() && !iHold && st.ph === 'play') msg = st.gm === 'sduell' ? 'Gleich kommen neue Sterne' : 'Gleich kommen neue Sterne, achte auf das Licht';
       else if (st.ph === 'ready') msg = 'Gleich geht’s los';
       else if (st.ph === 'count') msg = 'Mach dich bereit';
       else msg = 'Gleich bist du dran';
@@ -1022,6 +1032,7 @@
 
     function confirm() {
       if (st && (st.gm === 'muster' || st.gm === 'geheim')) { tapAnywhere(); return; }
+      if (freeStars() && mode === 'taster' && !myLight()) { tapStar(); return; } // ohne Licht sammelt der Taster einen Stern
       if (holding && mode === 'taster' && st && performance.now() < lockUntil) {
         // Dunkelheit: Ein Druck kurz vor Ende der Sperre geht nicht verloren, er wird gleich danach ausgeführt
         if (st.gm === 'dunkel' && lockUntil - performance.now() < 400) {
@@ -1039,7 +1050,7 @@
       if (!holding || performance.now() < lockUntil || !st) return;
       const light = st.lights.find((l) => l.h === ID);
       if (!light || light.z || st.paused) return; // Pause (Staffel: das andere Team ist dran, oder die Lehrkraft hat pausiert)
-      if (starTapNeeded()) {
+      if (starTapNeeded() && !freeStars()) {
         // Schatz-Licht: erst alle Sterne, dann das Licht. Nur bei einem einzelnen Stern darf das Licht auch zuerst kommen.
         const now = performance.now();
         if (mode === 'taster') {
@@ -1081,11 +1092,16 @@
           return;
         }
       }
-      finishPass(light, treasureHere());
+      finishPass(light, treasureHere() && !freeStars());
     }
 
     // Gelben Stern getippt
     function tapStar() {
+      if (freeStars()) {
+        if (!st || st.ph !== 'play' || st.finale || st.paused || !myBatch() || starsDone()) return;
+        starStep(null);
+        return;
+      }
       if (!holding || performance.now() < lockUntil || !st || !starTapNeeded() || starsDone()) return;
       const light = myLight();
       if (!light || light.z || st.paused) return;
@@ -1096,9 +1112,9 @@
     function starStep(light) {
       starCount++;
       if (sound && slot >= 0) LK.audio.note(slot, 0.3, 0.8, 0, 2);
-      if (navigator.vibrate) navigator.vibrate(15);
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* egal */ } }
       reportStars(light);
-      if (starTotal() === 1 && lightTapped) { finishPass(light, false); return; } // ein Stern, Licht war schon dran
+      if (!freeStars() && starTotal() === 1 && lightTapped) { finishPass(light, false); return; } // ein Stern, Licht war schon dran
       if (!starsDone()) {
         $('star').dataset.placed = '';
         placeStar();
@@ -1113,6 +1129,23 @@
 
     // Meldet der Tafel die Gesamtzahl der angetippten Sterne. Geht eine Meldung verloren, wird sie wiederholt.
     function reportStars(light) {
+      if (freeStars()) {
+        const b = myBatch();
+        if (!b) return;
+        const k = b.k;
+        const epoch = st.epoch;
+        net.send('star', { id: ID, epoch, g: 1, b: k, c: starCount });
+        let t = 0;
+        const again = () => {
+          const cur = st && st.sr && st.sr[ID];
+          if (!cur || cur.k !== k || cur.n === 0 || (cur.c || 0) >= starCount || t >= 4) return;
+          t++;
+          net.send('star', { id: ID, epoch, g: 1, b: k, c: starCount });
+          setTimeout(again, 1200);
+        };
+        setTimeout(again, 1200);
+        return;
+      }
       const s = light.s;
       const epoch = st.epoch;
       net.send('star', { id: ID, s, epoch, c: starCount });
@@ -1143,8 +1176,8 @@
       holding = false;
       lightTapped = false;
       clearTimeout(starTimer);
-      const done = starCount;
-      starCount = 0;
+      const done = freeStars() ? 0 : starCount;
+      if (!freeStars()) starCount = 0;
       lastConfirm = performance.now();
       passedToken = light.s;
       passedAt = performance.now();
@@ -1267,7 +1300,7 @@
     starBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       if (dragMode()) {
-        if (!holding || performance.now() < lockUntil || starsDone()) return;
+        if ((!freeStars() && (!holding || performance.now() < lockUntil)) || starsDone()) return;
         e.preventDefault();
         starDrag = { x0: starBtn.style.left, y0: starBtn.style.top };
         starBtn.classList.add('drag');
@@ -1290,7 +1323,7 @@
       starBtn.classList.remove('drag');
       if (hit && e.type === 'pointerup') {
         const light = myLight();
-        if (light && !light.z && !st.paused) { tapStar(); return; }
+        if (freeStars() || (light && !light.z && !st.paused)) { tapStar(); return; }
       }
       starBtn.style.left = d0.x0;
       starBtn.style.top = d0.y0;

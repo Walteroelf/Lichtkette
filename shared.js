@@ -22,7 +22,7 @@ window.LK = window.LK || {};
   LK.TEAM_COLORS = ['#22d3ee', '#f472b6'];
   LK.TEAM_NAMES = ['Blau', 'Pink'];
   // Spielarten mit zwei Teams (Staffel, Tauziehen)
-  LK.isTeamGm = (g) => g === 'staffel' || g === 'zieh' || g === 'extrem';
+  LK.isTeamGm = (g) => g === 'staffel' || g === 'zieh' || g === 'extrem' || g === 'sduell';
   LK.LIGHT_COLORS = ['#fde68a', '#7dd3fc', '#fbcfe8'];
 
   const TAU = Math.PI * 2;
