@@ -116,7 +116,7 @@
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
       // Schatz-Licht: sp = Sterne pro Schatz (1, 2, 3, 5 oder 0 = steigend), sj = Stern springt nach so vielen Sekunden weiter (0 = bleibt)
-      sp: readNum('lk_sp', [0, 1, 2, 3, 5], 1),
+      sp: readNum('lk_sp2', [0, 1, 2, 3, 5], 1), // neuer Schlüssel: ein Stern pro Schatz ist die Standardeinstellung, auch wenn früher etwas anderes gespeichert war
       sj: readNum('lk_sj', [0, 3, 4, 6], 0),
       // Zeitspiel: ph = ready | count | play, acc = gezählte Zeit in ms, run = Uhr läuft,
       // ft = Endzeit, rec = 1 neue Bestzeit / 2 erste Zeit, n = Geräteanzahl für die Bestzeit
@@ -692,7 +692,7 @@
       LK.store.set('lk_nl', String(st.nl));
       LK.store.set('lk_pen', String(st.pen));
       LK.store.set('lk_nr', String(st.nr));
-      LK.store.set('lk_sp', String(st.sp));
+      LK.store.set('lk_sp2', String(st.sp));
       LK.store.set('lk_sj', String(st.sj));
       LK.store.set('lk_ser', String(st.ser));
       LK.store.set('lk_ts', String(st.tsel));
@@ -1800,6 +1800,26 @@
         const a = nodes[e.a];
         const b = nodes[e.b];
         if (!a || !b) return;
+        if (view.gm === 'bild') {
+          // Lichtbild: kräftige, leuchtende Linien, die bei jeder Weitergabe dicker werden und so Stück für Stück ein Bild ergeben
+          const pb = bez(a, b, 0.5);
+          const w = 3 + Math.min(e.k, 16) * 1.3;
+          const gb = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+          gb.addColorStop(0, LK.rgba(a.col, 1));
+          gb.addColorStop(1, LK.rgba(b.col, 1));
+          ctx.lineCap = 'round';
+          [[w * 3.2, 0.12], [w * 1.4, 0.42], [Math.max(2, w * 0.45), 0.75]].forEach(([lw, al2]) => {
+            ctx.globalAlpha = Math.min(1, al2 + (fin ? 0.2 : 0));
+            ctx.strokeStyle = lw === Math.max(2, w * 0.45) ? 'rgba(255,255,255,0.9)' : gb;
+            ctx.lineWidth = lw;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.quadraticCurveTo(pb.qx, pb.qy, b.x, b.y);
+            ctx.stroke();
+          });
+          ctx.globalAlpha = 1;
+          return;
+        }
         const boost = fin ? 0.35 : 0;
         const al = Math.min(0.14 + e.k * 0.07 + boost, 0.85);
         const g = ctx.createLinearGradient(a.x, a.y, b.x, b.y);

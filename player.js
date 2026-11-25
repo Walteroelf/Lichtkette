@@ -752,6 +752,7 @@
 
     // Staffel/Tauziehen, Schwierigkeit: mehrere Treffer pro Weitergabe (nur Touch). Das Symbol springt nach jedem Treffer.
     let mtHit = 0;
+    let holdGated = false;
     // Die Einstellung des Spiels gilt für Touch. Taster und Blick-Maus machen nur mit, wenn die Tafel es für dieses Gerät eingestellt hat.
     const mtNeed = () => { if (!st || !LK.isTeamGm(st.gm) || st.gm === 'extrem') return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
     function placeTarget() {
@@ -862,6 +863,7 @@
         lightTapped = false;
         starCount = 0;
         mtHit = 0;
+        holdGated = false;
         clearTimeout(starTimer);
         lastStarPos = null;
         $('star').dataset.placed = '';
@@ -898,6 +900,13 @@
       if (!showStar || !dragMode()) $('basket').hidden = true;
       else if ($('basket').hidden) { $('star').dataset.placed = ''; }
       $('star').classList.toggle('auto', showStarAuto);
+      // Schatz-Licht: Das Symbol zum Weitergeben erscheint erst, wenn alle Sterne dieses Geräts eingesammelt sind
+      const gate = !!(iHold && holding && mode !== 'taster' && starTapNeeded() && !starsDone());
+      if (iHold && holding) {
+        $('hold').hidden = gate;
+        if (gate) holdGated = true;
+        else if (holdGated) { holdGated = false; if (useRandom()) placeTarget(); }
+      }
       if (showStar && !$('star').dataset.placed) { placeStar(); armStarJump(); }
       else if (showStarAuto && !$('star').dataset.placed) placeStar();
       // Wird der Stern jetzt automatisch eingesammelt (Einstellung geändert) und das Licht war schon getippt: weitergeben
