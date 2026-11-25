@@ -32,7 +32,7 @@
     { key: 'nt', label: 'Zeit dieses Geräts (Zeitspiel, Staffel)', type: 'int', vals: [['0', 'zählt'], ['1', 'zählt nicht']] },
     { key: 'w', label: 'Licht wandert weiter nach', type: 'int', vals: [['0', 'nie'], ['10', '10 s'], ['30', '30 s']] },
     { key: 'mt', label: 'Tipps pro Weitergabe (Staffel/Tauziehen; „wie Spiel“ gilt nur für Touch)', type: 'int', vals: [['', 'wie Spiel'], ['1', '1'], ['2', '2'], ['3', '3']] },
-    { key: 'tt', label: 'Team (Staffel, wirkt vor dem Start einer Runde)', type: 'str', vals: [['x', 'automatisch'], ['a', 'Blau'], ['b', 'Pink']] },
+    { key: 'tt', label: 'Team (Staffel, wirkt vor dem Start einer Runde)', type: 'str', vals: [['x', 'automatisch'], ['a', 'Blau'], ['b', 'Pink'], ['c', 'Grün'], ['d', 'Gelb']] },
   ];
 
   LK.startTeacher = async function (room, startBroker) {
@@ -205,6 +205,7 @@
     setting('tmt', 'mt', (v) => parseInt(v, 10));
     setting('tmf', 'mf', (v) => parseInt(v, 10));
     setting('tsb', 'sb', (v) => parseInt(v, 10));
+    setting('ttn', 'tn', (v) => parseInt(v, 10));
     setting('tfs', 'fs', (v) => parseInt(v, 10));
     // Ziel pro Runde: Auto oder in 5er-Schritten von 5 bis 100
     document.querySelectorAll('[data-tgnstep]').forEach((b) => b.addEventListener('click', () => {
@@ -308,6 +309,7 @@
       mark('tmt', p.mt);
       mark('tmf', p.mf);
       mark('tsb', p.sb);
+      mark('ttn', p.tn);
       mark('tfs', p.fs);
       $('tGnVal').textContent = p.gn ? String(p.gn) : `Auto (${p.goal})`;
       mark('ttsel', p.tsel);

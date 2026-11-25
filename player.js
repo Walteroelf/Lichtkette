@@ -69,7 +69,7 @@
     const eWait = () => (cfg().w !== undefined ? cfg().w : wait);
     const eNoTime = () => (cfg().nt !== undefined ? cfg().nt === 1 : noTime);
     const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
-    const eTeam = () => { const t = cfg().tt; if (t === 'a' || t === 'b') return t; return t === 'x' ? '' : team; };
+    const eTeam = () => { const t = cfg().tt; if (typeof t === 'string' && t.length === 1 && 'abcd'.includes(t)) return t; return t === 'x' ? '' : team; };
     // Größe: Bei Tippen (springender Punkt) ist der Standard kleiner, sonst normal
     const eSize = () => cfg().sz || (st && st.gm === 'basal' ? 1.4 : (useRandom() ? 0.75 : 1));
     // Sperre nach Ankunft des Lichts: bei Basal kurz, sonst je nach Eingabeart
@@ -80,7 +80,8 @@
     let seenSk = -1;     // Zähler von "Teams neu würfeln": ändert er sich, ist die eigene Wahl hinfällig
     const pickActive = () => !!(st && Date.now() - lastStateAt < 16000 && LK.isTeamGm(st.gm) && st.tsel === 1 && st.ph === 'ready'
       && st.players[ID] !== undefined && cfg().tt === undefined && !st.finale);
-    const curPick = () => pickTeam || (st && st.team && st.team[ID] === 1 ? 'b' : 'a');
+    const teamN = () => (st && st.gm !== 'zieh' ? Math.max(2, Math.min(4, st.tn || 2)) : 2);
+    const curPick = () => pickTeam || 'abcd'[Math.min(3, (st && st.team && st.team[ID]) || 0)];
     const starHere = () => !!(st && st.gm === 'schatz' && st.stars && st.stars.includes(ID));
     // Der Stern wird automatisch eingesammelt, wenn das Gerät es so eingestellt hat (die Tafel kann das vorgeben)
     // Sternenregen und Sterne gegeneinander: eigene Sterne (Päckchen) bei jedem Gerät, unabhängig vom Licht
@@ -924,7 +925,7 @@
       $('teamPick').hidden = !pa;
       if (pa) {
         const cp = curPick();
-        document.querySelectorAll('[data-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pick === cp)));
+        document.querySelectorAll('[data-pick]').forEach((b) => { b.hidden = 'abcd'.indexOf(b.dataset.pick) >= teamN(); b.setAttribute('aria-pressed', String(b.dataset.pick === cp)); });
         $('pickHint').textContent = mode === 'taster' ? 'Jeder Druck wechselt das Team.' : 'Tippe auf dein Team.';
       }
       scrPlay.classList.toggle('on', iHold || tg.on);
@@ -979,7 +980,7 @@
 
     // ---------- Team wählen (Staffel) ----------
     function choose(t) {
-      if (!pickActive() || (t !== 'a' && t !== 'b')) return;
+      if (!pickActive() || !(typeof t === 'string' && t.length === 1 && 'abcd'.indexOf(t) >= 0 && 'abcd'.indexOf(t) < teamN())) return;
       pickTeam = t;
       sendHb();
       render();
@@ -1291,7 +1292,7 @@
     hold.addEventListener('click', (e) => { if (keyClick(e)) return; confirm(); });
     document.addEventListener('keydown', (e) => {
       if (mode !== 'taster' || !active) return;
-      if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) { if (pickActive()) choose(curPick() === 'a' ? 'b' : 'a'); else confirm(); } }
+      if (switchMatches(e)) { e.preventDefault(); if (!e.repeat) { if (pickActive()) choose('abcd'[('abcd'.indexOf(curPick()) + 1) % teamN()]); else confirm(); } }
     });
     // Der gelbe Stern ist ein eigenes Ziel (liegt über dem Licht-Ziel, löst das Licht nicht aus)
     let starDrag = null;

@@ -19,8 +19,9 @@ window.LK = window.LK || {};
   ];
 
   // Staffel: zwei Teams. Doppelte Lichter: jedes Licht hat seine eigene Farbe.
-  LK.TEAM_COLORS = ['#22d3ee', '#f472b6'];
-  LK.TEAM_NAMES = ['Blau', 'Pink'];
+  LK.TEAM_COLORS = ['#22d3ee', '#f472b6', '#4ade80', '#fde047'];
+  LK.TEAM_NAMES = ['Blau', 'Pink', 'Grün', 'Gelb'];
+  LK.TEAM_LETTERS = 'abcd';
   // Spielarten mit zwei Teams (Staffel, Tauziehen)
   LK.isTeamGm = (g) => g === 'staffel' || g === 'zieh' || g === 'extrem' || g === 'sduell';
   LK.LIGHT_COLORS = ['#fde68a', '#7dd3fc', '#fbcfe8'];

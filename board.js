@@ -85,7 +85,7 @@
     let geRoute = [];
     const lastTapAt = {};
     let token = 0;
-    const penUntil = [0, 0]; // Staffel: bis wann das Licht des Teams wegen eines Fehltipps pausiert
+    const penUntil = [0, 0, 0, 0]; // Staffel: bis wann das Licht des Teams wegen eines Fehltipps pausiert
     // Vorgaben der Tafel pro Gerät (überstimmen die Einstellung am Gerät). Fehlt ein Wert, entscheidet das Gerät selbst.
     // pn Strafe bei Fehltipps 0/1, sz Größe des Punkts 0.7/1/1.4, rnd springender Punkt 0/1,
     // nt Zeit zählt nicht 0/1, w Weiterwandern 0/10/30 s, tt Team a/b/x (x = automatisch)
@@ -108,11 +108,11 @@
     let st = {
       epoch: Date.now(), seq: 0, gm: GAMES.includes(gmStored) ? gmStored : 'klassik',
       lights: [], // { h: Halter, p: vorheriger Halter, k: Nr., s: Kennung, a: Auto-ms, z: Pause }
-      chain: 0, goal: 8, round: 1, finale: false, players: {}, team: {}, tc: [0, 0], win: -1,
+      chain: 0, goal: 8, round: 1, finale: false, players: {}, team: {}, tc: [0, 0, 0, 0], win: -1,
       stars: [], sc: 0,
       // Staffel: ser = Siegpunkte bis zum Seriensieg (0 = keine Serie, 2 = Best of 3, 3 = Best of 5), sw = Siege je Team, sd = Serie entschieden
       // tsel = 1: Schüler wählen ihr Team selbst, sk = Zähler für "Teams neu würfeln"
-      ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), sk: 0,
+      ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0, 0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), tn: readNum('lk_tn', [2, 3, 4], 2), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
       dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl', [1, 2, 3, 4, 5, 6], 2), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), fs: readNum('lk_fs', [0, 1, 2, 3], 0), sr: {}, mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
@@ -145,21 +145,33 @@
       return -1;
     }
 
-    // Staffel: Wunschteam des Geräts (a/b) oder das kleinere Team
-    const ttPref = (id) => { const p = peers[id] && peers[id].tt; return p === 'a' ? 0 : (p === 'b' ? 1 : -1); };
+    // Anzahl der Teams: 2 bis 4 (Tauziehen hat immer 2, ein Seil hat nur zwei Seiten)
+    const teamN = () => (st.gm === 'zieh' ? 2 : Math.max(2, Math.min(4, st.tn || 2)));
+    const tIdx = (c) => { const i = c ? 'abcd'.indexOf(c) : -1; return i >= 0 && i < teamN() ? i : -1; };
+    // Staffel: Wunschteam des Geräts (a bis d) oder das kleinste Team
+    const ttPref = (id) => tIdx(peers[id] && peers[id].tt);
     // Festes Team (Tafel oder Gerät) geht vor, sonst die eigene Wahl des Schülers (nur wenn "Schüler wählen" an ist)
     const teamPref = (id) => {
       const t = ttPref(id);
       if (t >= 0) return t;
-      const q = st.tsel === 1 && peers[id] ? peers[id].tp : '';
-      return q === 'a' ? 0 : (q === 'b' ? 1 : -1);
+      return st.tsel === 1 && peers[id] ? tIdx(peers[id].tp) : -1;
+    };
+    // Zufällig eines der Teams mit dem kleinsten Wert
+    const minTeam = (arr, n) => {
+      let m = Infinity;
+      for (let i = 0; i < n; i++) m = Math.min(m, arr[i]);
+      const c = [];
+      for (let i = 0; i < n; i++) if (arr[i] === m) c.push(i);
+      return c[Math.floor(Math.random() * c.length)];
     };
     function assignTeam(id) {
       let t = teamPref(id);
       if (t < 0) {
-        const cnt = [0, 0];
-        Object.keys(st.team).forEach((k) => { if (st.players[k] !== undefined && k !== id) cnt[st.team[k]]++; });
-        t = cnt[0] === cnt[1] ? (teamMem[id] !== undefined ? teamMem[id] : 0) : (cnt[0] < cnt[1] ? 0 : 1);
+        const N = teamN();
+        const cnt = [0, 0, 0, 0];
+        Object.keys(st.team).forEach((k) => { if (st.players[k] !== undefined && k !== id && st.team[k] < N) cnt[st.team[k]]++; });
+        const mem = teamMem[id];
+        t = (mem !== undefined && mem < N && cnt[mem] === Math.min(...cnt.slice(0, N))) ? mem : minTeam(cnt, N);
       }
       st.team[id] = t;
       teamMem[id] = t;
@@ -170,7 +182,7 @@
       st.team = {};
       aliveIds().forEach((id) => {
         const t = teamPref(id);
-        if (t >= 0) { st.team[id] = t; teamMem[id] = t; } else if (old[id] === 0 || old[id] === 1) st.team[id] = old[id];
+        if (t >= 0) { st.team[id] = t; teamMem[id] = t; } else if (Number.isInteger(old[id]) && old[id] >= 0 && old[id] < teamN()) st.team[id] = old[id];
       });
       aliveIds().filter((id) => st.team[id] === undefined).forEach(assignTeam);
     }
@@ -181,8 +193,9 @@
       st.sk = (st.sk || 0) + 1;
       Object.keys(peers).forEach((k) => { peers[k].tp = ''; });
       st.team = {};
-      const cnt = [0, 0];
-      const ntc = [0, 0];
+      const N = teamN();
+      const cnt = [0, 0, 0, 0];
+      const ntc = [0, 0, 0, 0];
       const ids = aliveIds();
       ids.forEach((id) => {
         const t = ttPref(id);
@@ -191,11 +204,17 @@
       const free = ids.filter((id) => st.team[id] === undefined);
       for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
       const order = free.filter(isNt).concat(free.filter((id) => !isNt(id)));
-      const pick = (a, b) => (a === b ? -1 : (a < b ? 0 : 1));
       order.forEach((id) => {
-        let t = isNt(id) ? pick(ntc[0], ntc[1]) : -1;
-        if (t < 0) t = pick(cnt[0], cnt[1]);
-        if (t < 0) t = Math.random() < 0.5 ? 0 : 1;
+        let t;
+        if (isNt(id)) {
+          // Geräte mit "Zeit zählt nicht" gleichmäßig verteilen, unter den Teams mit gleich vielen zählt die Größe
+          const mn = Math.min(...ntc.slice(0, N));
+          const cand = [];
+          for (let i = 0; i < N; i++) if (ntc[i] === mn) cand.push(i);
+          const mc = Math.min(...cand.map((i) => cnt[i]));
+          const c2 = cand.filter((i) => cnt[i] === mc);
+          t = c2[Math.floor(Math.random() * c2.length)];
+        } else t = minTeam(cnt, N);
         st.team[id] = t;
         cnt[t]++;
         if (isNt(id)) ntc[t]++;
@@ -266,7 +285,7 @@
 
     function desiredLights() {
       if (st.gm === 'sduell') return 0;
-      if (LK.isTeamGm(st.gm)) return 2;
+      if (LK.isTeamGm(st.gm)) return teamN();
       if (st.gm === 'muster') return 0;
       if (st.gm === 'doppel') return Math.max(1, Math.min(st.nl, aliveIds().length - 1));
       return 1;
@@ -367,7 +386,7 @@
       const d = c - o.c;
       o.c = c;
       o.t += d;
-      if (st.gm === 'regen') st.sc += d; else st.tc[st.team[id] === 1 ? 1 : 0] += d;
+      if (st.gm === 'regen') st.sc += d; else st.tc[Math.min(3, st.team[id] || 0)] += d;
       if (o.c >= o.n) {
         // Päckchen leer: nach kurzer Zeit kommt ein neues
         o.n = 0; o.c = 0;
@@ -378,8 +397,8 @@
       }
       if (st.gm === 'regen' && st.sc >= st.goal) { startFinale(-1); return true; }
       if (st.gm === 'sduell') {
-        const w = st.tc[0] >= st.goal && st.tc[0] >= st.tc[1] ? 0 : (st.tc[1] >= st.goal ? 1 : -1);
-        if (w >= 0) { startFinale(w); return true; }
+        const w = Math.min(3, st.team[id] || 0);
+        if (st.tc[w] >= st.goal) { startFinale(w); return true; }
       }
       st.seq++;
       publish();
@@ -654,13 +673,12 @@
       if (!afterFinale) passStats = {};
       st.lights.forEach((l, i) => clearTimeout(autoTimers[i]));
       finishing = false;
-      penUntil[0] = 0;
-      penUntil[1] = 0;
+      for (let i = 0; i < 4; i++) penUntil[i] = 0;
       st.paused = false;
       if (bump) st.round++;
       st.finale = false;
       st.chain = 0;
-      st.tc = [0, 0];
+      st.tc = [0, 0, 0, 0];
       st.win = -1;
       st.lost = 0;
       clearInterval(dkTimer);
@@ -672,7 +690,7 @@
       st.mu = null;
       st.ge = null;
       geRoute = [];
-      if (st.sd || (!afterFinale && !keepSeries)) { st.sw = [0, 0]; st.sd = 0; }
+      if (st.sd || (!afterFinale && !keepSeries)) { st.sw = [0, 0, 0, 0]; st.sd = 0; }
       st.sc = 0;
       st.stars = [];
       st.lights = [];
@@ -758,6 +776,7 @@
       LK.store.set('lk_sj', String(st.sj));
       LK.store.set('lk_ser', String(st.ser));
       LK.store.set('lk_ts', String(st.tsel));
+      LK.store.set('lk_tn', String(st.tn));
       resetRound(true);
       publish();
     }
@@ -800,14 +819,12 @@
     function calcFrozen() {
       const now = Date.now();
       st.lights.forEach((l, i) => {
-        const o = st.lights[1 - i];
-        const wait = !!(LK.isTeamGm(st.gm) && st.lights.length === 2 && l.h && o && o.h && isNt(o.h) && !isNt(l.h));
+        // Hat ein Gerät mit "Zeit zählt nicht" das Licht eines anderen Teams, warten alle anderen Teams, bis es weitergegeben hat
+        const wait = !!(LK.isTeamGm(st.gm) && st.lights.length >= 2 && l.h && !isNt(l.h) && st.lights.some((o, j) => j !== i && o.h && isNt(o.h)));
         l.pn = !!(LK.isTeamGm(st.gm) && l.h && penUntil[i] > now); // Strafpause nach einem Fehltipp im eigenen Team
         l.z = wait || l.pn;
       });
     }
-
-    // Fehltipp eines Geräts (nur Staffel, nur wenn die Tafel Strafzeit eingeschaltet hat und das Gerät mitmacht)
     function onMiss(id) {
       if (!LK.isTeamGm(st.gm) || st.ph !== 'play' || st.finale || finishing || !st.pen) return;
       if (!peers[id] || !peers[id].pn) return;
@@ -841,7 +858,7 @@
       if (c.nt !== undefined) p.nt = c.nt === 1;
       if (c.w !== undefined && LK.WAIT_OPTIONS.includes(c.w)) p.w = c.w;
       if (c.pn !== undefined) p.pn = c.pn === 1;
-      if (c.tt !== undefined) p.tt = c.tt === 'a' || c.tt === 'b' ? c.tt : '';
+      if (c.tt !== undefined) p.tt = 'abcd'.includes(c.tt) && c.tt !== '' && c.tt !== 'x' ? c.tt : '';
     }
 
     // Einstellung eines Geräts ändern (value null = Gerät entscheidet wieder selbst)
@@ -926,7 +943,7 @@
       return {
         t: now, gm: st.gm, tm: st.tm, gn: st.gn, nl: st.nl, dkv: st.dkv, pen: st.pen, nr: st.nr, sp: st.sp, sj: st.sj,
         mup: st.mu ? st.mu.ph : '', mag: st.mu ? st.mu.ag : 0,
-        ser: st.ser, tsel: st.tsel, sw: st.sw, sd: st.sd, mt: st.mt, mf: st.mf, sb: st.sb, xl: st.xl, xa: st.xa,
+        ser: st.ser, tsel: st.tsel, tn: st.tn, sw: st.sw, sd: st.sd, mt: st.mt, mf: st.mf, sb: st.sb, xl: st.xl, xa: st.xa,
         ph: st.ph, round: st.round, finale: st.finale, paused: !!st.paused,
         chain: st.chain, goal: st.goal, tc: st.tc, sc: st.sc, n: aliveIds().length,
         devices: aliveIds().map((id) => ({
@@ -970,7 +987,7 @@
       sz: (v) => v === 0.35 || v === 0.75 || v === 1 || v === 1.4,
       w: (v) => LK.WAIT_OPTIONS.includes(v),
       mt: (v) => v === 1 || v === 2 || v === 3,
-      tt: (v) => v === 'a' || v === 'b' || v === 'x',
+      tt: (v) => v === 'a' || v === 'b' || v === 'c' || v === 'd' || v === 'x',
     };
 
     function execCmd(cmd) {
@@ -985,6 +1002,7 @@
           if ([1, 2, 3].includes(p.mt)) patch.mt = p.mt;
           if ([0, 1].includes(p.mf)) patch.mf = p.mf;
           if ([0, 1].includes(p.sb)) patch.sb = p.sb;
+          if ([2, 3, 4].includes(p.tn)) patch.tn = p.tn;
           if ([0, 1, 2, 3].includes(p.fs)) patch.fs = p.fs;
           if ([1, 2, 3, 4, 5, 6].includes(p.xl)) patch.xl = p.xl;
           if ([0, 1].includes(p.xa)) patch.xa = p.xa;
@@ -1075,8 +1093,8 @@
       const prev = peers[m.id];
       peers[m.id] = {
         last: now, w: LK.WAIT_OPTIONS.includes(m.w) ? m.w : 0, m: m.m, nt: m.nt === 1, pn: m.pn === 1,
-        tt: m.tt === 'a' || m.tt === 'b' ? m.tt : '',
-        tp: (m.tk === st.sk && (m.tp === 'a' || m.tp === 'b')) ? m.tp : '', // eigene Teamwahl, gilt nur nach dem letzten Würfeln
+        tt: typeof m.tt === 'string' && m.tt.length === 1 && 'abcd'.includes(m.tt) ? m.tt : '',
+        tp: (m.tk === st.sk && typeof m.tp === 'string' && m.tp.length === 1 && 'abcd'.includes(m.tp)) ? m.tp : '', // eigene Teamwahl, gilt nur nach dem letzten Würfeln
         md: ['touch', 'taster', 'blick'].includes(m.md) ? m.md : '',
         bv: typeof m.bv === 'string' ? m.bv.slice(0, 20) : '',
         xl: Number.isInteger(m.xl) && m.xl >= 1 && m.xl <= 6 ? m.xl : 0,
@@ -1184,7 +1202,7 @@
     const view = {
       gm: 'klassik', lights: [], vis: [], autoSince: [], round: -1, chain: 0, goal: 8, prog: 0,
       finale: false, fin: null, init: false, tm: false, ph: 'play', phAt: 0, acc: 0, run: false, accAt: 0,
-      ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0], win: -1, ser: 0, sw: [0, 0], sd: 0, tsel: 0,
+      ft: 0, rec: 0, best: 0, n: 0, cd: 0, finDur: FINALE_MS, pulseMs: 750, tc: [0, 0, 0, 0], win: -1, ser: 0, sw: [0, 0, 0, 0], sd: 0, tsel: 0,
       stars: [], sc: 0, team: {}, paused: false,
       lost: 0, sr: {}, dk: 0, dkr: 0, dkAt: 0, dkShow: 0.12, mu: null, ge: null, zp: 0,
     };
@@ -1293,10 +1311,11 @@
       view.finale = s.finale;
       view.chain = s.chain;
       view.goal = s.goal;
-      view.tc = s.tc || [0, 0];
+      view.tc = s.tc || [0, 0, 0, 0];
+      view.tn = s.tn || 2;
       view.win = s.win;
       view.ser = s.ser || 0;
-      view.sw = s.sw || [0, 0];
+      view.sw = s.sw || [0, 0, 0, 0];
       view.sd = s.sd || 0;
       view.tsel = s.tsel || 0;
       view.lost = s.lost || 0;
@@ -1326,7 +1345,7 @@
         Object.keys(s.sr || {}).forEach((id) => {
           const nt = (s.sr[id] && s.sr[id].t) || 0;
           const ot = (view.sr && view.sr[id] && view.sr[id].t) || 0;
-          for (let i = 0; i < Math.min(3, nt - ot); i++) starBurst(id, s.gm === 'sduell' ? ((s.team && s.team[id] === 1) ? 1 : 0) : -1);
+          for (let i = 0; i < Math.min(3, nt - ot); i++) starBurst(id, s.gm === 'sduell' ? ((s.team && s.team[id]) || 0) : -1);
         });
       }
       view.sr = s.sr || {};
@@ -1481,7 +1500,7 @@
     // Farbe des Lichts: bei Doppelten Lichtern und in der Staffel eigene Farben, sonst der Verlauf zwischen den Geräten
     function lightCol(li, c1, c2, k, a) {
       if (view.gm === 'doppel') return LK.rgba(LK.LIGHT_COLORS[li % 3], a);
-      if (LK.isTeamGm(view.gm)) return LK.rgba(LK.TEAM_COLORS[li % 2], a);
+      if (LK.isTeamGm(view.gm)) return LK.rgba(LK.TEAM_COLORS[li % 4], a);
       return LK.mixRgba(c1, c2, k, a);
     }
 
@@ -1675,7 +1694,9 @@
 
     function drawBasket(cx, cy, hr, now) {
       if (view.gm === 'sduell') {
-        [0, 1].forEach((t) => drawBasketAt(cx + (t ? 1 : -1) * hr * 1.35, cy, hr * 0.72, now, view.tc[t] || 0, t, LK.TEAM_COLORS[t], `★ ${view.tc[t] || 0} / ${view.goal}`));
+        const N = Math.max(2, Math.min(4, view.tn || 2));
+        const sp = N === 2 ? 1.35 : 1.2;
+        for (let t = 0; t < N; t++) drawBasketAt(cx + (t - (N - 1) / 2) * hr * sp, cy, hr * (N === 2 ? 0.72 : 0.56), now, view.tc[t] || 0, t, LK.TEAM_COLORS[t], `★ ${view.tc[t] || 0} / ${view.goal}`);
       } else {
         drawBasketAt(cx, cy, hr, now, view.sc, -1, null, `★ ${view.sc} / ${view.goal}`);
       }
@@ -2161,11 +2182,11 @@
         ctx.fillText(w >= 0 ? `Team ${LK.TEAM_NAMES[w]} gewinnt${view.sd ? ' die Serie' : ''}!` : 'Geschafft!', cx, cy - hr * 0.2);
         ctx.fillStyle = `rgba(200,205,240,${finA * 0.85})`;
         ctx.font = `500 ${Math.round(hr * 0.36)}px ${SANS}`;
-        ctx.fillText(`${view.tc[0]} : ${view.tc[1]} Weitergaben`, cx, cy + hr * 0.7);
+        ctx.fillText(`${view.tc.slice(0, Math.max(2, Math.min(4, view.tn || 2))).join(' : ')} ${view.gm === 'sduell' ? 'Sterne' : 'Weitergaben'}`, cx, cy + hr * 0.7);
         if (view.ser > 0) {
           ctx.fillStyle = `rgba(235,238,255,${finA * 0.9})`;
           ctx.font = `600 ${Math.round(hr * 0.36)}px ${SANS}`;
-          ctx.fillText(`Serie ${view.sw[0]} : ${view.sw[1]}`, cx, cy + hr * 1.3);
+          ctx.fillText(`Serie ${view.sw.slice(0, Math.max(2, Math.min(4, view.tn || 2))).join(' : ')}`, cx, cy + hr * 1.3);
         }
       } else if (fin && gm === 'dunkel' && view.lost) {
         ctx.fillStyle = `rgba(235,238,255,${finA})`;
@@ -2200,9 +2221,10 @@
         ctx.font = `500 ${Math.round(hr * 0.28)}px ${SANS}`;
         ctx.fillText(`${view.goalN || ''} ${({ staffel: 'Weitergaben pro Team', zieh: 'Schritte Vorsprung', extrem: 'Weitergaben pro Team', regen: 'Sterne bis zum Sieg', sduell: 'Sterne pro Team', schatz: 'Sterne', muster: 'Runden', geheim: 'Stationen' })[gm] || 'Weitergaben'}`, cx, cy + hr * 0.3);
         if (LK.isTeamGm(gm)) {
-          const cnt = [0, 0];
-          Object.keys(view.team || {}).forEach((id) => { if (nodes[id] && !nodes[id].dying) cnt[view.team[id] ? 1 : 0]++; });
-          const small = [0, 1].filter((t) => cnt[t] < 3);
+          const TN = gm === 'zieh' ? 2 : Math.max(2, Math.min(4, view.tn || 2));
+          const cnt = [0, 0, 0, 0];
+          Object.keys(view.team || {}).forEach((id) => { if (nodes[id] && !nodes[id].dying) cnt[Math.min(3, view.team[id] || 0)]++; });
+          const small = [0, 1, 2, 3].filter((t) => t < TN && cnt[t] < 3);
           ctx.font = `500 ${Math.round(hr * 0.24)}px ${SANS}`;
           if (view.tsel === 1) {
             ctx.fillStyle = 'rgba(200,205,240,0.7)';
@@ -2296,34 +2318,37 @@
         ctx.textAlign = 'center';
       }
 
-      // Staffel: Fortschritt beider Teams oben
+      // Staffel: Fortschritt aller Teams oben
       if ((gm === 'staffel' || gm === 'extrem') && playersHere > 0 && !fin) {
-        const bw = W * 0.34;
+        const N = Math.max(2, Math.min(4, view.tn || 2));
+        const gap = W * 0.025;
+        const bw = Math.min(W * 0.34, (W * 0.9 - gap * (N - 1)) / N);
+        const total = bw * N + gap * (N - 1);
         const bh = Math.max(10, H * 0.022);
         const y = H * 0.06;
-        [0, 1].forEach((t) => {
-          const x0 = t === 0 ? W * 0.5 - bw - W * 0.03 : W * 0.5 + W * 0.03;
+        for (let t = 0; t < N; t++) {
+          const x0 = (W - total) / 2 + t * (bw + gap);
           const frac = Math.min(1, (view.tc[t] || 0) / Math.max(1, view.goal));
           ctx.fillStyle = 'rgba(180,190,255,0.12)';
           ctx.fillRect(x0, y, bw, bh);
           ctx.fillStyle = LK.rgba(LK.TEAM_COLORS[t], 0.85);
-          ctx.fillRect(t === 0 ? x0 + bw * (1 - frac) : x0, y, bw * frac, bh);
+          ctx.fillRect(x0, y, bw * frac, bh);
           ctx.fillStyle = LK.rgba(LK.TEAM_COLORS[t], 0.95);
-          ctx.font = `600 ${Math.round(Math.min(W, H) * 0.028)}px ${SANS}`;
-          ctx.textAlign = t === 0 ? 'right' : 'left';
-          ctx.fillText(`Team ${LK.TEAM_NAMES[t]}  ${view.tc[t] || 0}/${view.goal}`, t === 0 ? x0 + bw : x0, y + bh + Math.min(W, H) * 0.035);
+          ctx.font = `600 ${Math.round(Math.min(W, H) * (N > 2 ? 0.022 : 0.028))}px ${SANS}`;
+          ctx.textAlign = 'center';
+          ctx.fillText(`${LK.TEAM_NAMES[t]}  ${view.tc[t] || 0}/${view.goal}`, x0 + bw / 2, y + bh + Math.min(W, H) * 0.035);
           // Serie: Leuchtpunkte für gewonnene Runden
           if (view.ser > 0) {
             const dr = Math.min(W, H) * 0.012;
             const dy = y + bh + Math.min(W, H) * 0.035 + dr * 2.6;
             for (let k = 0; k < view.ser; k++) {
-              const dx = t === 0 ? x0 + bw - dr - k * dr * 3 : x0 + dr + k * dr * 3;
+              const dx = x0 + bw / 2 + (k - (view.ser - 1) / 2) * dr * 3;
               ctx.beginPath();
               ctx.arc(dx, dy, dr, 0, TAU);
               if ((view.sw[t] || 0) > k) { ctx.fillStyle = LK.rgba(LK.TEAM_COLORS[t], 0.95); ctx.fill(); } else { ctx.strokeStyle = LK.rgba(LK.TEAM_COLORS[t], 0.5); ctx.lineWidth = 2; ctx.stroke(); }
             }
           }
-        });
+        }
         ctx.textAlign = 'center';
       }
 
@@ -2380,6 +2405,7 @@
       mark('mt', st.mt);
       mark('mf', st.mf);
       mark('sb', st.sb);
+      mark('tn', st.tn);
       mark('fs', st.fs);
       mark('xl', st.xl);
       mark('xa', st.xa);
@@ -2502,6 +2528,7 @@
     onSetting('mt', 'mt', (v) => parseInt(v, 10));
     onSetting('mf', 'mf', (v) => parseInt(v, 10));
     onSetting('sb', 'sb', (v) => parseInt(v, 10));
+    onSetting('tn', 'tn', (v) => parseInt(v, 10));
     onSetting('fs', 'fs', (v) => parseInt(v, 10));
     onSetting('xl', 'xl', (v) => parseInt(v, 10));
     onSetting('xa', 'xa', (v) => parseInt(v, 10));

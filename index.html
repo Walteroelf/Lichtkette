@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261125-1735">
+<meta name="build" content="20261125-1739">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -33,7 +33,7 @@
 <title>Lichtkette</title>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=20261125-1735">
+<link rel="stylesheet" href="style.css?v=20261125-1739">
 </head>
 <body>
 
@@ -123,6 +123,10 @@
       <div data-tfor="schatz regen sduell" class="t-row">
         <label>Sterne einsammeln am Touch-Gerät</label>
         <div class="seg wide"><button data-tsb="0">antippen</button><button data-tsb="1">in den Korb ziehen</button></div>
+      </div>
+      <div data-tfor="staffel extrem sduell" class="t-row">
+        <label>Anzahl der Teams</label>
+        <div class="seg wide"><button data-ttn="2">2</button><button data-ttn="3">3</button><button data-ttn="4">4</button></div>
       </div>
       <div data-tfor="staffel zieh extrem sduell" class="t-row">
         <label>Schwierigkeit: Tipps pro Weitergabe (am Touch-Gerät springt das Symbol nach jedem Treffer)</label>
@@ -294,6 +298,8 @@
     <p id="pickHint">Tippe auf dein Team.</p>
     <button type="button" data-pick="a" class="pick a"><b>Blau</b><small>✓ dein Team</small></button>
     <button type="button" data-pick="b" class="pick b"><b>Pink</b><small>✓ dein Team</small></button>
+    <button type="button" data-pick="c" class="pick c" hidden><b>Grün</b><small>✓ dein Team</small></button>
+    <button type="button" data-pick="d" class="pick d" hidden><b>Gelb</b><small>✓ dein Team</small></button>
   </div>
 </section>
 
@@ -376,7 +382,7 @@
     <p id="devTime" class="info" hidden></p>
     <div class="stack tight">
       <label>Team (Staffel, wirkt vor dem Start einer Runde)</label>
-      <div class="seg wide" data-cfg="tt" data-type="str"><button data-v="x">automatisch</button><button data-v="a">Blau</button><button data-v="b">Pink</button></div>
+      <div class="seg wide" data-cfg="tt" data-type="str"><button data-v="x">automatisch</button><button data-v="a">Blau</button><button data-v="b">Pink</button><button data-v="c">Grün</button><button data-v="d">Gelb</button></div>
     </div>
     <div class="stack"><button id="devReset" class="btn ghost">Alles zurücksetzen</button></div>
     <button id="devClose" class="btn close">Fertig</button>
@@ -470,6 +476,10 @@
         <label>Sterne einsammeln am Touch-Gerät (der Korb wechselt nach jedem Stern den Platz)</label>
         <div class="seg wide"><button data-sb="0">antippen</button><button data-sb="1">in den Korb ziehen</button></div>
       </div>
+      <div data-for="staffel extrem sduell" class="stack tight">
+        <label>Anzahl der Teams (jedes mit eigener Farbe: Blau, Pink, Grün, Gelb)</label>
+        <div class="seg wide"><button data-tn="2">2</button><button data-tn="3">3</button><button data-tn="4">4</button></div>
+      </div>
       <div data-for="staffel zieh extrem sduell" class="stack tight">
         <label>Serie (Siegpunkte über mehrere Runden)</label>
         <div class="seg wide"><button data-ser="0">aus</button><button data-ser="2">Best of 3</button><button data-ser="3">Best of 5</button></div>
@@ -514,13 +524,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261125-1735"></script>
-<script src="lib/qrcode.js?v=20261125-1735"></script>
-<script src="shared.js?v=20261125-1735"></script>
-<script src="net.js?v=20261125-1735"></script>
-<script src="board.js?v=20261125-1735"></script>
-<script src="player.js?v=20261125-1735"></script>
-<script src="teacher.js?v=20261125-1735"></script>
-<script src="main.js?v=20261125-1735"></script>
+<script src="lib/mqtt.min.js?v=20261125-1739"></script>
+<script src="lib/qrcode.js?v=20261125-1739"></script>
+<script src="shared.js?v=20261125-1739"></script>
+<script src="net.js?v=20261125-1739"></script>
+<script src="board.js?v=20261125-1739"></script>
+<script src="player.js?v=20261125-1739"></script>
+<script src="teacher.js?v=20261125-1739"></script>
+<script src="main.js?v=20261125-1739"></script>
 </body>
 </html>

@@ -590,3 +590,7 @@ dialog { max-height: calc(94dvh / var(--z, 1)); }
 @keyframes dkBlink { 50% { opacity: 0.5; } }
 
 .dkseg button { padding: 9px 4px; min-width: 0; }
+
+#teamPick .pick.c { background: #4ade80; }
+#teamPick .pick.d { background: #fde047; }
+#teamPick .pick[hidden] { display: none; }
