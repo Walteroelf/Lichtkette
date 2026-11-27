@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06070d">
-<meta name="build" content="20261125-1750">
+<meta name="build" content="20261127-1151">
 <script>
 // Neue Version erkennen: GitHub liefert Dateien bis zu 10 Minuten zwischengespeichert.
 // version.json wird immer frisch geholt. Ist sie neuer als diese Seite, lädt sich die Seite einmal neu.
@@ -33,7 +33,7 @@
 <title>Lichtkette</title>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=20261125-1750">
+<link rel="stylesheet" href="style.css?v=20261127-1151">
 </head>
 <body>
 
@@ -324,6 +324,7 @@
   <button id="fsTafel" type="button" aria-label="Vollbild" title="Vollbild">⛶</button>
   <button id="goBtn" class="big-btn" hidden>Los ▶</button>
   <button id="shakeBtn" class="btn" hidden>🎲 Teams neu würfeln</button>
+  <button id="muIpad" class="btn ghost" hidden aria-pressed="false">Anzeige auf den iPads: aus</button>
   <button id="muHelp" class="btn ghost" hidden aria-pressed="false">Hilfslinien: aus</button>
   <button id="saveBtn" class="btn" hidden>💾 Bild speichern</button>
 
@@ -463,8 +464,8 @@
         <div class="seg wide"><button data-tm="0">Ruhig</button><button data-tm="1">Zeitspiel</button></div>
       </div>
       <div data-for="extrem" class="stack tight">
-        <label>Start-Stufe (1 leicht bis 10 extrem). Touch: ab Stufe 4 mehrere Bänder, ab Stufe 8 ohne Hinweis auf gesperrte Bänder. Taster: bis zu 6 Drücke. Blick-Maus: bis zu 4 Blicke (der Kreis springt)</label>
-        <div class="seg wide dkseg"><button data-xl="1">1</button><button data-xl="2">2</button><button data-xl="3">3</button><button data-xl="4">4</button><button data-xl="5">5</button><button data-xl="6">6</button><button data-xl="7">7</button><button data-xl="8">8</button><button data-xl="9">9</button><button data-xl="10">10</button></div>
+        <label>Start-Stufe (1 leicht bis 15 extrem). Touch: 1 bis 5 tippen (groß in der Mitte, kleiner, wandernd, klein, zweimal), 6 bis 8 eine Spur, ab 9 mehrere Bänder, ab 13 ohne Hinweis auf gesperrte Bänder. Taster: bis zu 6 Drücke. Blick-Maus: bis zu 4 Blicke</label>
+        <div class="seg wide dkseg xlseg"><button data-xl="1">1</button><button data-xl="2">2</button><button data-xl="3">3</button><button data-xl="4">4</button><button data-xl="5">5</button><button data-xl="6">6</button><button data-xl="7">7</button><button data-xl="8">8</button><button data-xl="9">9</button><button data-xl="10">10</button><button data-xl="11">11</button><button data-xl="12">12</button><button data-xl="13">13</button><button data-xl="14">14</button><button data-xl="15">15</button></div>
         <label>Stufe passt sich jedem Gerät an (schnell = schwerer, langsam = leichter)</label>
         <div class="seg wide"><button data-xa="1">automatisch</button><button data-xa="0">bleibt gleich</button></div>
       </div>
@@ -524,13 +525,13 @@
   <p>Dieses Gerät</p>
 </div>
 
-<script src="lib/mqtt.min.js?v=20261125-1750"></script>
-<script src="lib/qrcode.js?v=20261125-1750"></script>
-<script src="shared.js?v=20261125-1750"></script>
-<script src="net.js?v=20261125-1750"></script>
-<script src="board.js?v=20261125-1750"></script>
-<script src="player.js?v=20261125-1750"></script>
-<script src="teacher.js?v=20261125-1750"></script>
-<script src="main.js?v=20261125-1750"></script>
+<script src="lib/mqtt.min.js?v=20261127-1151"></script>
+<script src="lib/qrcode.js?v=20261127-1151"></script>
+<script src="shared.js?v=20261127-1151"></script>
+<script src="net.js?v=20261127-1151"></script>
+<script src="board.js?v=20261127-1151"></script>
+<script src="player.js?v=20261127-1151"></script>
+<script src="teacher.js?v=20261127-1151"></script>
+<script src="main.js?v=20261127-1151"></script>
 </body>
 </html>

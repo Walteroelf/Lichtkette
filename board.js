@@ -115,7 +115,7 @@
       ser: readNum('lk_ser', [0, 2, 3], 0), sw: [0, 0, 0, 0], sd: 0, tsel: readNum('lk_ts', [0, 1], 0), tn: readNum('lk_tn', [2, 3, 4], 2), sk: 0,
       tm: LK.store.get('lk_tm', '0') === '1' ? 1 : 0,
       gn: (() => { const v = parseInt(LK.store.get('lk_gn', '0'), 10); return validGn(v) ? v : 0; })(),
-      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), fs: readNum('lk_fs', [0, 1, 2, 3], 0), sr: {}, mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
+      dkv: readNum('lk_dkv2', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 4), mt: readNum('lk_mt', [1, 2, 3], 1), xl: readNum('lk_xl3', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 1), xa: readNum('lk_xa', [0, 1], 1), sb: readNum('lk_sb', [0, 1], 0), fs: readNum('lk_fs', [0, 1, 2, 3], 0), ms: readNum('lk_ms2', [0, 1], 0), sr: {}, mf: readNum('lk_mf', [0, 1], 0), dk: 0, dkr: 0, lost: 0, mu: null, ge: null, nl: readNum('lk_nl', NL_OPTIONS, 2),
       pen: readNum('lk_pen', PEN_OPTIONS, 0), cfg: {}, paused: false,
       // Nach einer Runde: 1 = wartet auf den Knopf "Neue Runde" (Standard), 0 = geht automatisch weiter
       nr: readNum('lk_nr', [0, 1], 1),
@@ -764,7 +764,7 @@
       LK.store.set('lk_gn', String(st.gn));
       LK.store.set('lk_dkv2', String(st.dkv));
       LK.store.set('lk_mt', String(st.mt));
-      LK.store.set('lk_xl2', String(st.xl));
+      LK.store.set('lk_xl3', String(st.xl));
       LK.store.set('lk_xa', String(st.xa));
       LK.store.set('lk_sb', String(st.sb));
       LK.store.set('lk_fs', String(st.fs));
@@ -1004,7 +1004,7 @@
           if ([0, 1].includes(p.sb)) patch.sb = p.sb;
           if ([2, 3, 4].includes(p.tn)) patch.tn = p.tn;
           if ([0, 1, 2, 3].includes(p.fs)) patch.fs = p.fs;
-          if (Number.isInteger(p.xl) && p.xl >= 1 && p.xl <= 10) patch.xl = p.xl;
+          if (Number.isInteger(p.xl) && p.xl >= 1 && p.xl <= 15) patch.xl = p.xl;
           if ([0, 1].includes(p.xa)) patch.xa = p.xa;
           if (NL_OPTIONS.includes(p.nl)) patch.nl = p.nl;
           if (PEN_OPTIONS.includes(p.pen)) patch.pen = p.pen;
@@ -1097,7 +1097,7 @@
         tp: (m.tk === st.sk && typeof m.tp === 'string' && m.tp.length === 1 && 'abcd'.includes(m.tp)) ? m.tp : '', // eigene Teamwahl, gilt nur nach dem letzten Würfeln
         md: ['touch', 'taster', 'blick'].includes(m.md) ? m.md : '',
         bv: typeof m.bv === 'string' ? m.bv.slice(0, 20) : '',
-        xl: Number.isInteger(m.xl) && m.xl >= 1 && m.xl <= 10 ? m.xl : 0,
+        xl: Number.isInteger(m.xl) && m.xl >= 1 && m.xl <= 15 ? m.xl : 0,
       };
       applyPeerCfg(m.id); // Vorgaben der Tafel gehen vor
       if (isHost !== true) return;
@@ -1313,6 +1313,7 @@
       view.goal = s.goal;
       view.tc = s.tc || [0, 0, 0, 0];
       view.tn = s.tn || 2;
+      view.ms = s.ms === 1 ? 1 : 0;
       view.win = s.win;
       view.ser = s.ser || 0;
       view.sw = s.sw || [0, 0, 0, 0];
@@ -1381,6 +1382,9 @@
       const muPh = (view.gm === 'muster' && view.ph === 'play' && !view.finale && view.mu) ? view.mu.ph : '';
       const muBtn = muPh === 'ready' || muPh === 'shown';
       $('goBtn').hidden = !(isHost === true && (view.ph === 'ready' || bildFin || muBtn) && Object.keys(st.players).length > 0);
+      $('muIpad').hidden = !(isHost === true && view.gm === 'muster' && view.ph === 'play' && !view.finale);
+      $('muIpad').textContent = `Anzeige auf den iPads: ${view.ms ? 'an' : 'aus'}`;
+      $('muIpad').setAttribute('aria-pressed', String(!!view.ms));
       $('muHelp').hidden = !(isHost === true && view.gm === 'muster' && view.ph === 'play' && !view.finale && view.mu && view.mu.sq.length > 0);
       $('muHelp').textContent = `Hilfslinien: ${view.muLines ? 'an' : 'aus'}`;
       $('muHelp').setAttribute('aria-pressed', String(!!view.muLines));
@@ -2612,8 +2616,9 @@
       startCountdown();
     };
     $('goBtn').addEventListener('click', goOrNext);
-    view.muLines = LK.store.get('lk_mulines', '0') === '1';
-    $('muHelp').addEventListener('click', () => { view.muLines = !view.muLines; LK.store.set('lk_mulines', view.muLines ? '1' : '0'); refreshUi(); });
+    view.muLines = LK.store.get('lk_mulines2', '0') === '1';
+    $('muIpad').addEventListener('click', () => { if (isHost !== true) return; st.ms = st.ms ? 0 : 1; LK.store.set('lk_ms2', String(st.ms)); publish(); });
+    $('muHelp').addEventListener('click', () => { view.muLines = !view.muLines; LK.store.set('lk_mulines2', view.muLines ? '1' : '0'); refreshUi(); });
     $('shakeBtn').addEventListener('click', () => { if (st.gm === 'muster') { if (st.mu && st.mu.ph === 'ready') muGoNow(); else muShowNow(); } else shakeTeams(); });
     // Lichtbild als Bild speichern
     $('saveBtn').addEventListener('click', () => {

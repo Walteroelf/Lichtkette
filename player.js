@@ -71,7 +71,7 @@
     const eMiss = () => (cfg().pn !== undefined ? cfg().pn === 1 : missOn);
     const eTeam = () => { const t = cfg().tt; if (typeof t === 'string' && t.length === 1 && 'abcd'.includes(t)) return t; return t === 'x' ? '' : team; };
     // Größe: Bei Tippen (springender Punkt) ist der Standard kleiner, sonst normal
-    const eSize = () => cfg().sz || (st && st.gm === 'basal' ? 1.4 : (xBlick() && mtNeed() > 1 ? 1.4 : (useRandom() ? 0.75 : 1)));
+    const eSize = () => (xTap() ? X_TAPSIZE[xLevel() - 1] : 0) || cfg().sz || (st && st.gm === 'basal' ? 1.4 : (xBlick() && mtNeed() > 1 ? 1.4 : (useRandom() ? 0.75 : 1)));
     // Sperre nach Ankunft des Lichts: bei Basal kurz, sonst je nach Eingabeart
     // Basal und Dunkelheit: kurze Sperre, damit nichts verzögert (die Dunkelheit läuft ja gegen die Zeit)
     const lockMs = () => (st && st.gm === 'extrem' && mode === 'taster' ? 300 : (st && (st.gm === 'basal' || st.gm === 'dunkel') && mode !== 'blick' ? 250 : MODES[mode].lock));
@@ -145,12 +145,18 @@
     }
 
     // Ein springender Punkt gilt für Tippen und Maus, nicht für den Taster
-    const trOn = () => !!(st && st.gm === 'extrem' && mode === 'touch');
+    // Staffel Hardcore am Touch: Stufe 1 bis 5 sind Tippaufgaben aufs eigene Symbol, ab Stufe 6 wird eine Spur gezogen (Spur-Stufe 1 bis 10)
+    const X_TAPLV = 5;
+    const trOn = () => !!(st && st.gm === 'extrem' && mode === 'touch' && xLevel() > X_TAPLV);
+    const xTap = () => !!(st && st.gm === 'extrem' && mode === 'touch' && xLevel() <= X_TAPLV);
+    const X_TAPSIZE = [2.4, 1.4, 1, 0.65, 0.65]; // Stufe 1 groß in der Mitte, 2 kleiner, 3 wandert, 4 klein, 5 klein und zweimal
+    const X_TAPS = [1, 1, 1, 1, 2];
+    const X_TAPT = [2, 2.2, 2.6, 3, 4.2]; // Sekunden, die als "genau richtig" gelten
     // Staffel Hardcore am Taster: Die Stufe bestimmt, wie oft man drücken muss (Stufe 1 und 2: einmal, bis Stufe 6: fünfmal)
     const xTaster = () => !!(st && st.gm === 'extrem' && mode === 'taster');
     // Am Blick (Augensteuerung) ebenso, aber höchstens dreimal, weil jedes Auslösen etwa drei Sekunden Blick braucht. Der Kreis springt nach jedem Auslösen.
     const xBlick = () => !!(st && st.gm === 'extrem' && mode === 'blick');
-    const useRandom = () => trOn() || (xBlick() && mtNeed() > 1) || eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
+    const useRandom = () => xTap() || trOn() || (xBlick() && mtNeed() > 1) || eTarget() === 'rnd' && (mode !== 'taster' || cfg().rnd === 1) && !(st && (st.gm === 'muster' || st.gm === 'geheim')); // dort bleibt das eigene Symbol in der Mitte
     const hintText = () => {
       if (useRandom()) return mode === 'blick' ? 'Klicke auf den leuchtenden Punkt' : 'Tippe auf den leuchtenden Punkt';
       return MODES[mode].hint;
@@ -355,7 +361,7 @@
       const el = $('muStrip');
       const mu = st && st.gm === 'muster' ? st.mu : null;
       const ph = mu ? mu.ph : '';
-      const showIt = tapGm && mu && st.ph === 'play' && !st.finale && mu.sq.length && ['show', 'shown', 'go', 'again', 'next'].includes(ph);
+      const showIt = tapGm && st.ms === 1 && mu && st.ph === 'play' && !st.finale && mu.sq.length && ['show', 'shown', 'go', 'again', 'next'].includes(ph);
       el.hidden = !showIt;
       if (!showIt) { muFk = -1; return; }
       const upto = ph === 'show' ? (mu.si === undefined ? -1 : mu.si) : mu.sq.length - 1;
@@ -418,7 +424,14 @@
     let tr = null;
     let xLvl = 0;
     let xStreak = 0;
-    const xLevel = () => { if (!xLvl) xLvl = (st && st.xl) || 2; return Math.max(1, Math.min(10, xLvl)); };
+    // Die Start-Stufe der Tafel gilt, sobald sie neu gewählt wird. Steht die Anpassung auf "bleibt gleich", gilt immer sie.
+    let xSeen = 0;
+    const xLevel = () => {
+      if (st && st.xl && st.xl !== xSeen) { xSeen = st.xl; xLvl = st.xl; xStreak = 0; }
+      if (st && st.xa === 0 && st.xl) return st.xl;
+      if (!xLvl) xLvl = 1;
+      return Math.max(1, Math.min(15, xLvl));
+    };
     const trCv = () => $('traceCv');
     const smooth = (u) => u * u * (3 - 2 * u);
     // Form der Auslenkung (-1 bis 1) entlang der Spur, t von 0 bis 1
@@ -549,7 +562,7 @@
       const W = window.innerWidth;
       const H = window.innerHeight;
       const vm = Math.min(W, H);
-      const lvl = xLevel();
+      const lvl = Math.max(1, Math.min(10, xLevel() - X_TAPLV));
       const n = [1, 1, 1, 2, 2, 3, 3, 3, Math.random() < 0.5 ? 3 : 4, 4][lvl - 1];
       let paths = [];
       let w = vm * X_WIDTH[lvl - 1];
@@ -677,7 +690,7 @@
       const T = X_TIME[tr.lvl - 1];
       if (st && st.xa === 1) {
         const ratio = secs / T;
-        if (ratio < 0.65 && tr.resets === 0) { xStreak++; if (xStreak >= 2 && xLevel() < 10) { xLvl = Math.min(10, xLevel() + 1); xStreak = 0; } }
+        if (ratio < 0.65 && tr.resets === 0) { xStreak++; if (xStreak >= 2 && xLevel() < 15) { xLvl = Math.min(15, xLevel() + 1); xStreak = 0; } }
         else if (ratio > 1.7 || tr.resets >= 3) { xLvl = Math.max(1, xLevel() - 1); xStreak = 0; }
         else xStreak = 0;
       }
@@ -762,11 +775,11 @@
     let mtHit = 0;
     let holdGated = false;
     // Die Einstellung des Spiels gilt für Touch. Taster und Blick-Maus machen nur mit, wenn die Tafel es für dieses Gerät eingestellt hat.
-    const X_PRESS = [1, 1, 2, 2, 3, 3, 4, 4, 5, 6];
-    const X_PRESS_B = [1, 1, 2, 2, 2, 3, 3, 3, 3, 4];
-    const X_BTIME = [6, 6.5, 10, 10.5, 11, 16, 16.5, 17, 17.5, 22]; // Blick: Sekunden, die als "genau richtig" gelten
-    const X_TTIME = [3, 3.2, 4.5, 5, 6, 6.5, 7.5, 8, 9, 10.5]; // so viele Sekunden gelten am Taster als "genau richtig"
-    const mtNeed = () => { if (st && st.gm === 'extrem') return xTaster() ? X_PRESS[xLevel() - 1] : (xBlick() ? X_PRESS_B[xLevel() - 1] : 1); if (!st || !LK.isTeamGm(st.gm)) return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
+    const X_PRESS = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6];
+    const X_PRESS_B = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4];
+    const X_BTIME = [5, 5.2, 5.4, 5.6, 5.8, 9.5, 10, 10.2, 10.4, 10.6, 15, 15.5, 16, 16.5, 21]; // Blick: Sekunden, die als "genau richtig" gelten
+    const X_TTIME = [2.6, 2.8, 3, 3.2, 3.4, 4.4, 4.6, 5, 6, 6.4, 7.5, 8, 9, 9.5, 11]; // so viele Sekunden gelten am Taster als "genau richtig"
+    const mtNeed = () => { if (st && st.gm === 'extrem') return xTaster() ? X_PRESS[xLevel() - 1] : (xBlick() ? X_PRESS_B[xLevel() - 1] : (xTap() ? X_TAPS[xLevel() - 1] : 1)); if (!st || !LK.isTeamGm(st.gm)) return 1; const n = cfg().mt !== undefined ? cfg().mt : (mode === 'touch' ? st.mt : 1); return n > 1 ? n : 1; };
     function placeTarget() {
       const hold = $('hold');
       const w = window.innerWidth;
@@ -784,6 +797,7 @@
         const farFromLast = !lastPos || Math.hypot(x - lastPos.x, y - lastPos.y) > d * 1.2;
         if (farFromCenter && farFromLast) break;
       }
+      if (xTap() && xLevel() <= 2) { x = w / 2; y = h * 0.45; } // Stufe 1 und 2: großes Symbol fest in der Mitte
       lastPos = { x, y };
       hold.style.width = `${d}px`;
       hold.style.height = `${d}px`;
@@ -818,7 +832,7 @@
     // ---------- Verbindung ----------
     function sendHb() {
       if (!active) return;
-      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, xl: (trOn() || xTaster() || xBlick()) && slot >= 0 ? xLevel() : 0, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
+      net.send('hb', { id: ID, w: eWait(), m: mode.charAt(0), nt: eNoTime() ? 1 : 0, tt: eTeam(), tp: pickTeam, tk: seenSk, md: mode, xl: (trOn() || xTap() || xTaster() || xBlick()) && slot >= 0 ? xLevel() : 0, pn: eMiss() && mode !== 'taster' ? 1 : 0, bv: LK.BUILD, t: Date.now() });
     }
     setInterval(sendHb, HB_MS);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHb(); });
@@ -972,7 +986,7 @@
       const bits = [];
       if (fresh && LK.isTeamGm(st.gm) && myTeam !== undefined) bits.push(`Team ${LK.TEAM_NAMES[myTeam]}`);
       if (iHold && st.gm === 'doppel') bits.push(`Licht ${light.k + 1}`);
-      if (fresh && (trOn() || xTaster() || xBlick()) && slot >= 0) bits.push(`Stufe ${xLevel()}`);
+      if (fresh && (trOn() || xTap() || xTaster() || xBlick()) && slot >= 0) bits.push(`Stufe ${xLevel()}`);
       if (iHold && mtNeed() > 1) bits.push(`Tipp ${Math.min(mtHit + 1, mtNeed())} von ${mtNeed()}`);
       if (fresh && st.gm === 'schatz' && st.stars && st.stars.includes(ID)) bits.push('★ Hier liegt ein Stern');
       $('tag').textContent = bits.join(' · ');
@@ -1183,10 +1197,10 @@
     // Staffel Hardcore am Taster: Die Stufe passt sich an die Geschwindigkeit an (schnell = mehr Drücke, langsam = weniger)
     let xT0 = 0;
     function xTasterAdapt() {
-      if (!(xTaster() || xBlick()) || !xT0 || !st || st.xa !== 1) return;
+      if (tr || !(xTaster() || xBlick() || xTap()) || !xT0 || !st || st.xa !== 1) return; // Spur-Stufen werden beim Spurende bewertet
       const secs = (performance.now() - xT0) / 1000;
-      const ratio = secs / (xBlick() ? X_BTIME : X_TTIME)[xLevel() - 1];
-      if (ratio < 0.65) { xStreak++; if (xStreak >= 2 && xLevel() < 10) { xLvl = Math.min(10, xLevel() + 1); xStreak = 0; } }
+      const ratio = secs / (xBlick() ? X_BTIME : (xTap() ? X_TAPT : X_TTIME))[xLevel() - 1];
+      if (ratio < 0.65) { xStreak++; if (xStreak >= 2 && xLevel() < 15) { xLvl = Math.min(15, xLevel() + 1); xStreak = 0; } }
       else if (ratio > 1.7) { xLvl = Math.max(1, xLevel() - 1); xStreak = 0; }
       else xStreak = 0;
       xT0 = 0;

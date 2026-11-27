@@ -557,7 +557,9 @@ dialog { max-height: calc(94dvh / var(--z, 1)); }
 #muStrip i.done { opacity: .3; }
 #muStrip i.next { opacity: 1; transform: scale(1.12); }
 #scr-play.mine #shape { opacity: .9; transform: scale(1); }
-#muHelp { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); padding: 10px 22px; z-index: 3; }
+#muHelp { position: absolute; left: calc(50% + 8px); bottom: 3%; padding: 10px 22px; z-index: 3; }
+#muIpad { position: absolute; left: calc(50% - 8px); bottom: 3%; transform: translateX(-100%); padding: 10px 22px; z-index: 3; }
+#muIpad[hidden] { display: none; }
 #muHelp[hidden] { display: none; }
 
 /* Sterne in den Korb ziehen (Touch) */
@@ -594,3 +596,5 @@ dialog { max-height: calc(94dvh / var(--z, 1)); }
 #teamPick .pick.c { background: #4ade80; }
 #teamPick .pick.d { background: #fde047; }
 #teamPick .pick[hidden] { display: none; }
+.xlseg { flex-wrap: wrap; }
+.xlseg button { flex: 1 0 11%; }
